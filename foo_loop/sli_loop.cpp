@@ -284,7 +284,7 @@ bool parse_sli_entity(const char * & ptr,pfc::string8 & name,pfc::string8 & valu
 	return true;
 }
 
-bool parse_sli_link(const char * & ptr,sli_link_impl &link) {
+bool parse_sli_link(const char * & ptr,service_ptr_t<sli_link_impl> link) {
 	// must point '{' , which indicates start of the block.
 	if(*ptr != '{') return false;
 	ptr++;
@@ -299,47 +299,43 @@ bool parse_sli_link(const char * & ptr,sli_link_impl &link) {
 			if (!parse_sli_entity(ptr, name, value)) return false;
 			if (!pfc::stricmp_ascii(name, "From")) {
 				if (!pfc::string_is_numeric(value)) return false;
-				link.from = pfc::atoui64_ex(value, ~0);
+				link->from = pfc::atoui64_ex(value, ~0);
 			} else if (!pfc::stricmp_ascii(name, "To")) {
 				if (!pfc::string_is_numeric(value)) return false;
-				link.to = pfc::atoui64_ex(value, ~0);
+				link->to = pfc::atoui64_ex(value, ~0);
 			} else if (!pfc::stricmp_ascii(name, "Smooth")) {
-				if (!pfc::stricmp_ascii(value, "True")) {
-					link.smooth = true;
-				} else if (!pfc::stricmp_ascii(value, "False")) {
-					link.smooth = false;
-				} else if (!pfc::stricmp_ascii(value, "Yes")) {
-					link.smooth = true;
-				} else if (!pfc::stricmp_ascii(value, "No")) {
-					link.smooth = false;
+				if (!pfc::stricmp_ascii(value, "True") || !pfc::stricmp_ascii(value, "Yes")) {
+					link->smooth = true;
+				} else if (!pfc::stricmp_ascii(value, "False") || !pfc::stricmp_ascii(value, "No")) {
+					link->smooth = false;
 				} else {
 					// parse error
 					return false;
 				}
 			} else if (!pfc::stricmp_ascii(name, "Condition")) {
 				if (!pfc::stricmp_ascii(value, "no")) {
-					link.condition = new loop_condition_no();
+					link->condition = new loop_condition_no();
 				} else if (!pfc::stricmp_ascii(value, "eq")) {
-					link.condition = new loop_condition_eq();
+					link->condition = new loop_condition_eq();
 				} else if (!pfc::stricmp_ascii(value, "ne")) {
-					link.condition = new loop_condition_ne();
+					link->condition = new loop_condition_ne();
 				} else if (!pfc::stricmp_ascii(value, "gt")) {
-					link.condition = new loop_condition_gt();
+					link->condition = new loop_condition_gt();
 				} else if (!pfc::stricmp_ascii(value, "ge")) {
-					link.condition = new loop_condition_ge();
+					link->condition = new loop_condition_ge();
 				} else if (!pfc::stricmp_ascii(value, "lt")) {
-					link.condition = new loop_condition_lt();
+					link->condition = new loop_condition_lt();
 				} else if (!pfc::stricmp_ascii(value, "le")) {
-					link.condition = new loop_condition_le();
+					link->condition = new loop_condition_le();
 				} else {
 					return false;
 				}
 			} else if (!pfc::stricmp_ascii(name, "RefValue")) {
 				if (!pfc::string_is_numeric(value)) return false;
-				link.refvalue = pfc::clip_t<t_sli_value>(pfc::atoui_ex(value, ~0), SLI_MIN_FLAG_VALUE, SLI_MAX_FLAG_VALUE);
+				link->refvalue = pfc::clip_t<t_sli_value>(pfc::atoui_ex(value, ~0), SLI_MIN_FLAG_VALUE, SLI_MAX_FLAG_VALUE);
 			} else if (!pfc::stricmp_ascii(name, "CondVar")) {
 				if (!pfc::string_is_numeric(value)) return false;
-				link.condvar = pfc::clip_t<t_sli_value>(pfc::atoui_ex(value, ~0), 0, SLI_FLAGS-1);
+				link->condvar = pfc::clip_t<t_sli_value>(pfc::atoui_ex(value, ~0), 0, SLI_FLAGS-1);
 			} else {
 				return false;
 			}
@@ -351,7 +347,7 @@ bool parse_sli_link(const char * & ptr,sli_link_impl &link) {
 	return true;
 }
 
-bool parse_sli_label(const char * & ptr,sli_label &label) {
+bool parse_sli_label(const char * & ptr,service_ptr_t<sli_label> label) {
 	// must point '{' , which indicates start of the block.
 	if(*ptr != '{') return false;
 	ptr++;
@@ -366,9 +362,9 @@ bool parse_sli_label(const char * & ptr,sli_label &label) {
 			if (!parse_sli_entity(ptr, name, value)) return false;
 			if (!pfc::stricmp_ascii(name, "Position")) {
 				if (!pfc::string_is_numeric(value)) return false;
-				label.position = pfc::atoui64_ex(value, ~0);
+				label->position = pfc::atoui64_ex(value, ~0);
 			} else if (!pfc::stricmp_ascii(name, "Name")) {
-				label.name.set_string(value);
+				label->name.set_string(value);
 			} else {
 				return false;
 			}
@@ -533,7 +529,7 @@ public:
 			p_length += 11;
 			p_start += 10;
 			if (!pfc::char_is_numeric(*p_length) || !pfc::char_is_numeric(*p_start)) return false;
-			sli_link_impl * link = new service_impl_t<sli_link_impl>();
+			service_ptr_t<sli_link_impl> link = new service_impl_t<sli_link_impl>();
 			link->smooth = false;
 			link->condition = new loop_condition_no();
 			link->refvalue = 0;
@@ -557,8 +553,8 @@ public:
 					ptr += 4;
 					while (isspace((unsigned char) *ptr)) ptr++;
 					if (!*ptr) return false;
-					sli_link_impl * link = new service_impl_t<sli_link_impl>();
-					if (!parse_sli_link(ptr, *link)) return false;
+					service_ptr_t<sli_link_impl> link = new service_impl_t<sli_link_impl>();
+					if (!parse_sli_link(ptr, link)) return false;
 					if (m_no_flags && link->condition != NULL && link->condition->is_valid)
 						m_no_flags = false;
 					m_points.add_item(link);
@@ -566,8 +562,8 @@ public:
 					ptr += 5;
 					while (isspace((unsigned char) *ptr)) ptr++;
 					if (!*ptr) return false;
-					sli_label * label = new service_impl_t<sli_label>();
-					if (!parse_sli_label(ptr, *label)) return false;
+					service_ptr_t<sli_label> label = new service_impl_t<sli_label>();
+					if (!parse_sli_label(ptr, label)) return false;
 					m_points.add_item(label);
 				} else {
 					return false;
