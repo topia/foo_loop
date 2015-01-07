@@ -155,12 +155,15 @@ namespace loop_helper {
 
 	class loop_event_point : public service_base {
 	public:
+		static const t_uint64 position_eof = ~0;
+
 		//! Get position of this event occured.
 		virtual t_uint64 get_position() const = 0;
 
 		//! Get position of this event occured with audio chunk includes specified point.
 		virtual t_uint64 get_prepare_position() const = 0;
 
+		//! static check of point validity
 		virtual void check() const = 0;
 
 		//! Get information of this event.
@@ -236,6 +239,7 @@ namespace loop_helper {
 		virtual const char * get_info_prefix() const = 0;
 
 	public:
+		//! parse loop spec file
 		virtual bool parse(const char * ptr) = 0;
 		//! process specified event with audio chunk and return true after seek or switch input, otherwise false.
 		virtual bool process_event(loop_event_point::ptr point, t_uint64 start, audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) = 0;
