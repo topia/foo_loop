@@ -27,16 +27,16 @@ public:
 	FB2K_MAKE_SERVICE_INTERFACE(sli_link, loop_event_point);
 };
 
-template <typename value_treat_t>
+template <typename trait_t>
 struct value_clipper {
-	static inline typename value_treat_t::value_t clip_both(typename value_treat_t::value_t value) {
-		return pfc::clip_t<typename value_treat_t::value_t>(value, value_treat_t::min_value, value_treat_t::max_value);
+	static inline typename trait_t::value_t clip_both(typename trait_t::value_t value) {
+		return pfc::clip_t<typename trait_t::value_t>(value, trait_t::min_value, trait_t::max_value);
 	}
-	static inline typename value_treat_t::value_t clip_min(typename value_treat_t::value_t value) {
-		return pfc::max_t<typename value_treat_t::value_t>(value, value_treat_t::min_value);
+	static inline typename trait_t::value_t clip_min(typename trait_t::value_t value) {
+		return pfc::max_t<typename trait_t::value_t>(value, trait_t::min_value);
 	}
-	static inline typename value_treat_t::value_t clip_max(typename value_treat_t::value_t value) {
-		return pfc::min_t<typename value_treat_t::value_t>(value, value_treat_t::max_value);
+	static inline typename trait_t::value_t clip_max(typename trait_t::value_t value) {
+		return pfc::min_t<typename trait_t::value_t>(value, trait_t::max_value);
 	}
 };
 
@@ -53,22 +53,22 @@ struct sli_processor {
 		min_value = sli_min_value,
 		max_value = sli_max_value,
 	};
-	struct flag_treat_t {
+	struct flag_trait_t {
 		typedef sli_value_t value_t;
 		enum {
 			min_value = 0,
 			max_value = sli_num_flags + 1,
 		};
 	};
-	typedef value_clipper<flag_treat_t> flag_clipper;
-	struct value_treat_t {
+	typedef value_clipper<flag_trait_t> flag_clipper;
+	struct value_trait_t {
 		typedef sli_value_t value_t;
 		enum {
 			min_value = sli_min_value,
 			max_value = sli_max_value,
 		};
 	};
-	typedef value_clipper<value_treat_t> value_clipper;
+	typedef value_clipper<value_trait_t> value_clipper;
 
 	class loop_condition {
 	public:
@@ -183,8 +183,8 @@ struct sli_processor {
 		t_uint64 to;
 		bool smooth;
 		loop_condition const* condition;
-		typename value_treat_t::value_t refvalue;
-		typename flag_treat_t::value_t condvar;
+		typename value_trait_t::value_t refvalue;
+		typename flag_trait_t::value_t condvar;
 		t_size seens;
 
 		virtual void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
