@@ -283,15 +283,20 @@ namespace loop_helper {
 	}
 
 	void loop_type_impl_base::switch_input(input_decoder::ptr p_input) {
-		switch_input(p_input, nullptr);
+		switch_input(p_input, nullptr, -1);
 	}
 
 	void loop_type_impl_base::switch_input(input_decoder::ptr p_input, const char* p_path) {
+		switch_input(p_input, p_path, -1);
+	}
+
+	void loop_type_impl_base::switch_input(input_decoder::ptr p_input, const char* p_path, double pos_on_decode) {
 		// please specify reopen'd input...
 		m_current_input = p_input;
 		if (m_current_input_v2.is_valid()) m_current_input_v2.release();
 		m_current_input->service_query_t(m_current_input_v2);
 		m_dynamic.m_input_switched = m_dynamic_track.m_input_switched = true;
+		m_dynamic.m_input_switched_pos = m_dynamic_track.m_input_switched_pos = pos_on_decode;
 		m_current_changed = true;
 		if (p_path != nullptr) {
 			m_current_path.set_string_(p_path);
@@ -302,7 +307,7 @@ namespace loop_helper {
 		}
 		set_succ(true);
 	}
-	
+
 	void loop_type_impl_base::switch_points(loop_event_point_list p_list) {
 		m_dynamic.m_old_points = m_cur_points;
 		m_dynamic_track.m_old_points = m_cur_points;
@@ -465,6 +470,7 @@ namespace loop_helper {
 	}
 
 	bool loop_type_impl_base::run_common(audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) {
+		m_dynamic.m_input_switched_pos = m_dynamic_track.m_input_switched_pos = -1;
 		t_uint64 start = get_cur();
 		t_uint retries = 4; // max retries
 		while (retries > 0 && get_succ()) {

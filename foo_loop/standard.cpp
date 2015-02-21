@@ -19,7 +19,7 @@ namespace loop_helper {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
 		open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect, p_skip_hints);
 		//m_points.remove_all();
-		switch_input(m_input, path);
+		switch_input(m_input, path, 0);
 		switch_points(m_points);
 		return true;
 	}
@@ -44,7 +44,7 @@ namespace loop_helper {
 		catch (exception_io_not_found) {
 			return false;
 		}
-		switch_input(m_input, path);
+		switch_input(m_input, path, 0);
 		file_info_impl p_info;
 		get_input()->get_info(0, p_info, p_abort);
 		m_points.remove_all();
@@ -83,7 +83,7 @@ public:
 		} catch (exception_io_not_found) {
 			return false;
 		}
-		switch_input(m_input, path);
+		switch_input(m_input, path, 0);
 		file_info_impl p_info;
 		get_input()->get_info(0, p_info, p_abort);
 		m_points.remove_all();
@@ -150,7 +150,7 @@ private:
 
 	inline void switch_to(somefile & newfile) {
 		m_current = &newfile;
-		switch_input(newfile.input, newfile.path);
+		switch_input(newfile.input, newfile.path, 0);
 	}
 
 protected:
@@ -420,7 +420,7 @@ public:
 		} catch (exception_io_not_found) {
 			return false;
 		}
-		switch_input(m_input, path);
+		switch_input(m_input, path, 0);
 		switch_points(m_points);
 		return true;
 	}

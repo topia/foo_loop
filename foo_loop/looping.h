@@ -296,6 +296,7 @@ namespace loop_helper {
 			t_uint64 updateperiod;
 			loop_event_point_list m_old_points;
 			bool m_input_switched;
+			double m_input_switched_pos;
 
 			dynamic_update_tracker();
 
@@ -337,8 +338,8 @@ namespace loop_helper {
 	protected:
 		inline bool get_succ() const override {return m_succ;}
 		inline void set_succ(bool val) override {m_succ = val;}
-		inline void set_cur(t_uint64 val) override {m_cur = val;}
-		inline void add_cur(t_uint64 add) override {m_cur += add;}
+		inline void set_cur(t_uint64 val) override { m_cur = val; }
+		inline void add_cur(t_uint64 add) override { m_cur += add; }
 		inline bool is_raw_supported() const override {return m_raw_support;}
 		virtual double get_dynamic_updateperiod() const;
 		virtual double get_dynamictrack_updateperiod() const;
@@ -355,7 +356,8 @@ namespace loop_helper {
 		virtual input_decoder_v2::ptr& get_input_v2() override;
 
 		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input);
-		virtual void switch_input(input_decoder::ptr p_input, const char* p_path);
+		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input, const char* p_path);
+		virtual void switch_input(input_decoder::ptr p_input, const char* p_path, double pos_on_decode);
 		virtual void switch_points(loop_event_point_list p_list);
 
 		virtual pfc::list_permutation_t<loop_event_point::ptr> get_points_by_pos();
@@ -469,10 +471,13 @@ namespace loop_helper {
 				}
 				oldlist.remove_all();
 				tracker.m_input_switched = false;
+				if (ret && tracker.m_input_switched_pos >= 0) {
+					p_timestamp_delta = pfc::max_t(p_timestamp_delta, tracker.m_input_switched_pos);
+					tracker.m_input_switched_pos = -1;
+				}
 			}
 			if (!get_no_looping()) {
 				if (tracker.check_and_update(get_cur())) {
-					p_timestamp_delta = !ret ? 0.5 : pfc::min_t<double>(0.5, p_timestamp_delta);
 					ret |= t_dispatcher::self_set(*this, p_out);
 					t_uint32 sample_rate = get_sample_rate();
 					for (t_size n = 0, m = get_points().get_count(); n < m; ++n ) {

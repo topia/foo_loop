@@ -118,7 +118,7 @@ struct sli_processor {
 #undef DEFINE_LOOP_CONDITION
 			};
 
-			size_t num = sizeof(specs) / sizeof(specs[0]);
+			size_t num = tabsize(specs);
 			conds = new loop_condition*[num + 1];
 			for (size_t i = 0; i < num; ++i) {
 				conds[i] = new loop_condition_impl(specs[i].confname, specs[i].symbol, specs[i].is_valid, specs[i].oper);
@@ -642,7 +642,7 @@ public:
 	virtual t_size get_crossfade_samples_half() const { return m_crossfade_samples_half; }
 	virtual bool open_path_internal(file::ptr p_filehint, const char * path, t_input_open_reason /*p_reason*/, abort_callback & p_abort, bool p_from_redirect, bool p_skip_hints) override {
 		open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect, p_skip_hints);
-		switch_input(m_input, path);
+		switch_input(m_input, path, 0);
 		return true;
 	}
 	virtual void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) override {
