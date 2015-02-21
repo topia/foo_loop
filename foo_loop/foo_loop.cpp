@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "looping.h"
 
+using namespace loop_helper;
 
 namespace {
 	bool parse_looptype(const char * & p_content, pfc::string_base & p_type) {
@@ -30,7 +31,8 @@ class input_loop : public input_loop_base
 {
 public:
 	input_loop() : input_loop_base("loop_") {}
-	void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) {
+
+	virtual void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) override {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
 		m_loopfile = p_filehint;
 		m_path = p_path;
@@ -63,22 +65,26 @@ public:
 			order_helper::g_fill(m_perm_by_prio);
 			ents.sort_get_permutation_t(looptype_priority_compare<loop_type_prioritized_entry, loop_type_prioritized_entry>, m_perm_by_prio.get_ptr());
 			for (t_size i=0; i<m_perm_by_prio.get_size(); ++i) {
-				ptr = ents.get_item(m_perm_by_prio[i]).ptr;
-				loop_type::ptr instance = ptr->instantiate();
-				if (instance->parse(p_content) && instance->open_path(NULL, p_content_basepath, p_reason, p_abort, true, false)) {
-					m_loopentry = ptr;
-					m_looptype = instance;
-					break;
+				if (m_looptype.is_empty()) {
+					ptr = ents.get_item(m_perm_by_prio[i]).ptr;
+					loop_type::ptr instance = ptr->instantiate();
+					if (instance->parse(p_content) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
+						m_loopentry = ptr;
+						m_looptype = instance;
+						continue;
+					}
+					instance.release();
 				}
+				ptr.release();
 			}
 			ents.remove_all();
 		}
 
 		if (m_looptype.is_empty()) {
 			//console::formatter() << "loop parsing failed, resume to normal playback: \"" << file_path_display(p_path) << "\"";
-			loop_type_entry::ptr ptr = new service_impl_t<loop_type_impl_t<loop_type_entire>>();
+			ptr = new service_impl_t<loop_type_impl_t<loop_type_entire>>();
 			loop_type::ptr instance = new service_impl_t<loop_type_entire>();
-			if (instance->parse(p_content) && instance->open_path(NULL, p_content_basepath, p_reason, p_abort, true, false)) {
+			if (instance->parse(p_content) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 				m_loopentry = ptr;
 				m_looptype = instance;
 			}
@@ -86,8 +92,12 @@ public:
 		}
 	}
 
-	static bool g_is_our_content_type(const char * p_content_type) {return false;}
-	static bool g_is_our_path(const char * p_path,const char * p_extension) {return stricmp_utf8(p_extension, "loop") == 0;}
+	static bool g_is_our_content_type(const char * /*p_content_type*/) {
+		return false;
+	}
+	static bool g_is_our_path(const char * /*p_path*/,const char * p_extension) {
+		return stricmp_utf8(p_extension, "loop") == 0;
+	}
 };
 
 

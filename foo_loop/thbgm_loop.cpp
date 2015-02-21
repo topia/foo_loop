@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "looping.h"
 
+using namespace loop_helper;
+
 struct thbgm_entry {
 	t_filesize offset, headlength, bodylength;
 	pfc::string8 title;
@@ -36,16 +38,16 @@ public:
 		m_title = p_title;
 	}
 
-	t_uint32 get_subsong_count() {
+	virtual t_uint32 get_subsong_count() override {
 		return m_list.get_size();
 	}
 
-	t_uint32 get_subsong(t_uint32 p_subsong) {
+	virtual t_uint32 get_subsong(t_uint32 p_subsong) override {
 		assert(p_subsong < get_subsong_count());
 		return p_subsong + 1;
 	}
 
-	void get_info(t_uint32 p_subsong,file_info & p_info,abort_callback & p_abort) {
+	virtual void get_info(t_uint32 p_subsong,file_info & p_info,abort_callback & /*p_abort*/) override {
 		p_info.info_set_int("samplerate", sample_rate);
 		p_info.info_set_int("channels", channels);
 		p_info.info_set_int("bitspersample", bits_per_sample);
@@ -67,7 +69,7 @@ public:
 		}
 	}
 
-	t_filestats get_file_stats(abort_callback & p_abort) {
+	virtual t_filestats get_file_stats(abort_callback & p_abort) override {
 		return m_file->get_stats(p_abort);
 	}
 
@@ -79,7 +81,7 @@ public:
 		return p_samples * total_sample_width;
 	}
 
-	void initialize(t_uint32 p_subsong,unsigned p_flags,abort_callback & p_abort) {
+	virtual void initialize(t_uint32 p_subsong,unsigned /*p_flags*/,abort_callback & p_abort) override {
 		if (p_subsong > 0) {
 			m_entry = m_list[p_subsong-1];
 		} else {
@@ -106,7 +108,7 @@ public:
 
 		p_chunk.set_data_fixedpoint(m_buffer.get_ptr(),deltaread_done,sample_rate,channels,bits_per_sample,audio_chunk::g_guess_channel_config(channels));
 
-		if (p_raw != NULL) {
+		if (p_raw != nullptr) {
 			p_raw->set(m_buffer.get_ptr(), deltaread_done);
 		}
 
@@ -115,15 +117,15 @@ public:
 		return true;
 	}
 
-	bool run(audio_chunk & p_chunk,abort_callback & p_abort) {
-		return run_common(p_chunk,NULL,p_abort);
+	virtual bool run(audio_chunk & p_chunk,abort_callback & p_abort) override {
+		return run_common(p_chunk,nullptr,p_abort);
 	}
 
-	bool run_raw(audio_chunk & p_chunk, mem_block_container & p_raw, abort_callback & p_abort) {
+	virtual bool run_raw(audio_chunk & p_chunk, mem_block_container & p_raw, abort_callback & p_abort) override {
 		return run_common(p_chunk,&p_raw,p_abort);
 	}
 
-	void seek(double p_seconds,abort_callback & p_abort) {
+	virtual void seek(double p_seconds,abort_callback & p_abort) override {
 		m_file->ensure_seekable();
 		t_uint64 samples = audio_math::time_to_samples(p_seconds, sample_rate);
 		m_filepos = samples * total_sample_width;
@@ -132,13 +134,13 @@ public:
 		m_file->seek(m_entry.offset + m_filepos, p_abort);
 	}
 
-	bool can_seek() {return true;}
-	bool get_dynamic_info(file_info & p_out, double & p_timestamp_delta) {return false;}
-	bool get_dynamic_info_track(file_info & p_out, double & p_timestamp_delta) {return false;}
+	virtual bool can_seek() override {return true;}
+	virtual bool get_dynamic_info(file_info & /*p_out*/, double & /*p_timestamp_delta*/) override {return false;}
+	virtual bool get_dynamic_info_track(file_info & /*p_out*/, double & /*p_timestamp_delta*/) override {return false;}
 
-	void on_idle(abort_callback & p_abort) {}
+	virtual void on_idle(abort_callback & /*p_abort*/) override {}
 
-	void set_logger(event_logger::ptr ptr) {}
+	virtual void set_logger(event_logger::ptr /*ptr*/) override {}
 
 
 protected:
@@ -155,9 +157,9 @@ protected:
 
 unsigned read_hex(char c)
 {
-	if (c>='0' && c<='9') return (unsigned)c - '0';
-	else if (c>='a' && c<='f') return 0xa + (unsigned)c - 'a';
-	else if (c>='A' && c<='F') return 0xa + (unsigned)c - 'A';
+	if (c>='0' && c<='9') return static_cast<unsigned>(c) - '0';
+	else if (c>='a' && c<='f') return 0xa + static_cast<unsigned>(c) - 'a';
+	else if (c>='A' && c<='F') return 0xa + static_cast<unsigned>(c) - 'A';
 	else return 0;
 }
 
@@ -165,11 +167,11 @@ template<typename t_inttype>
 bool parse_cs_hex(const char * & ptr,t_inttype & value) {
 	char tmp;
 	t_size n = 0;
-	while(isspace((unsigned char) *ptr)) ptr++;
-	while(tmp = ptr[n], tmp && !isspace((unsigned char) tmp) && tmp != ',') n++;
+	while(isspace(static_cast<unsigned char>(*ptr))) ptr++;
+	while(tmp = ptr[n], tmp && !isspace(static_cast<unsigned char>(tmp)) && tmp != ',') n++;
 	if (n == 0) return false;
 	value = 0;
-	for (n--;n!=(t_size)-1;n--) {
+	for (n--;n!=static_cast<t_size>(-1);n--) {
 		value = value << 4 | read_hex(*ptr++);
 	}
 	if (*ptr == ',') ptr++;
@@ -190,8 +192,8 @@ public:
 	static const char * g_get_short_name() {return "thbgm";}
 	static bool g_is_our_type(const char * type) {return !pfc::stringCompareCaseInsensitive(type, "thbgm");}
 	static bool g_is_explicit() {return true;}
-	virtual bool parse(const char * ptr) {
-		assert(ptr != NULL);
+	virtual bool parse(const char * ptr) override {
+		assert(ptr != nullptr);
 		m_list.remove_all();
 		m_title.reset();
 		m_path.reset();
@@ -199,28 +201,27 @@ public:
 			if (*ptr == '#') {
 				while (*ptr && *ptr != '\n') ptr++;
 				if (*ptr == '\n') ptr++;
-			} else if (isspace((unsigned char) *ptr)) {
-				while(isspace((unsigned char) *ptr)) ptr++;
+			} else if (isspace(static_cast<unsigned char>(*ptr))) {
+				while(isspace(static_cast<unsigned char>(*ptr))) ptr++;
 			} else if (*ptr == '@') {
 				// FIXME: handle path and name
 				t_size n = 0;
-				t_size end = 0;
 				ptr++; // @
 				char tmp;
-				while(isspace((unsigned char) *ptr)) ptr++;
+				while(isspace(static_cast<unsigned char>(*ptr))) ptr++;
 				while(tmp = ptr[n], tmp != ',')
 					if (!tmp) return false;
 					else n++;
-				end = n;
-				while(n!=(t_size)-1 && isspace((unsigned char) ptr[n-1])) n--;
+				t_size end = n;
+				while(n!=static_cast<t_size>(-1) && isspace(static_cast<unsigned char>(ptr[n-1]))) n--;
 				m_path.set_string(ptr, n);
 				ptr+=end;
 				ptr++; // ,
 				n=0;
-				while(isspace((unsigned char) *ptr)) ptr++;
+				while(isspace(static_cast<unsigned char>(*ptr))) ptr++;
 				while(tmp = ptr[n], tmp && tmp != '\n') n++;
 				end = n;
-				while(n!=(t_size)-1 && isspace((unsigned char) ptr[n-1])) n--;
+				while(n!=static_cast<t_size>(-1) && isspace(static_cast<unsigned char>(ptr[n-1]))) n--;
 				m_title.set_string(ptr, n);
 				ptr+=end;
 				if (*ptr == '\n') ptr++;
@@ -230,12 +231,11 @@ public:
 				if (!parse_cs_hex(ptr, ent.headlength)) return false;
 				if (!parse_cs_hex(ptr, ent.bodylength)) return false;
 				t_size n = 0;
-				t_size end = 0;
 				char tmp;
-				while(isspace((unsigned char) *ptr)) ptr++;
+				while(isspace(static_cast<unsigned char>(*ptr))) ptr++;
 				while(tmp = ptr[n], tmp && tmp != '\n') n++;
-				end = n;
-				while(n!=(t_size)-1 && isspace((unsigned char) ptr[n-1])) n--;
+				t_size end = n;
+				while(n!=static_cast<t_size>(-1) && isspace(static_cast<unsigned char>(ptr[n-1]))) n--;
 				ent.title.set_string(ptr, n);
 				m_list.add_item(ent);
 				ptr+=end;
@@ -244,7 +244,7 @@ public:
 		}
 		return true;
 	}
-	virtual bool open_path_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) {
+	virtual bool open_path_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort,bool /*p_from_redirect*/,bool /*p_skip_hints*/) override {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
 		p_abort.check();
 		m_input.release();
@@ -257,7 +257,7 @@ public:
 		switch_input(m_input, p_path);
 		return true;
 	}
-	virtual void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) {
+	virtual void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) override {
 		loop_type_impl_singleinput_base::open_decoding_internal(subsong,flags,p_abort);
 		get_point_list(subsong,m_points,p_abort);
 		switch_points(m_points);
@@ -275,7 +275,7 @@ public:
 			p_list.add_item(point);
 		}
 	}
-	virtual void get_info(t_uint32 p_subsong, file_info & p_info,abort_callback & p_abort) {
+	virtual void get_info(t_uint32 p_subsong, file_info & p_info,abort_callback & p_abort) override {
 		get_input()->get_info(p_subsong, p_info, p_abort);
 		loop_event_point_list points;
 		get_point_list(p_subsong,points,p_abort);

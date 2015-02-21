@@ -15,86 +15,10 @@ see also:
 
 #include "stdafx.h"
 #include "looping.h"
+#include <utility>
+#include <functional>
 
-#define SLI_FLAGS 16
-typedef unsigned int t_sli_value;
-#define SLI_MIN_FLAG_VALUE 0
-#define SLI_MAX_FLAG_VALUE 9999
-
-// {808359F5-36A6-4b67-BF0D-5FA83C404035}
-static const GUID guid_cfg_sli_label_log = 
-{ 0x808359f5, 0x36a6, 0x4b67, { 0xbf, 0xd, 0x5f, 0xa8, 0x3c, 0x40, 0x40, 0x35 } };
-advconfig_checkbox_factory cfg_sli_label_logging("SLI Label Logging",guid_cfg_sli_label_log,loop_type_base::guid_cfg_branch_loop,0,false);
-
-
-typedef pfc::array_staticsize_t<int> t_flags_array;
-class loop_condition {
-public:
-	const char * const confname;
-	const char * const symbol;
-	const bool is_valid;
-	loop_condition(const char * confname, const char * symbol, bool is_valid) :
-	  confname(confname), symbol(symbol), is_valid(is_valid) {}
-	virtual bool check(t_sli_value a, t_sli_value b) = 0;
-};
-
-class loop_condition_no : public loop_condition {
-public:
-	loop_condition_no() : loop_condition("no", NULL, false) {};
-	virtual bool check(t_sli_value a, t_sli_value b) { return true; }
-};
-
-#define DEFINE_LOOP_CONDITION(name, op) \
-class loop_condition_ ##name : public loop_condition { \
-public: \
-	loop_condition_ ##name () : loop_condition( #name, #op, true ) {}; \
-	virtual bool check(t_sli_value a, t_sli_value b) { return a op b; } \
-};
-
-DEFINE_LOOP_CONDITION(eq, ==);
-DEFINE_LOOP_CONDITION(ne, !=);
-DEFINE_LOOP_CONDITION(gt, >);
-DEFINE_LOOP_CONDITION(ge, >=);
-DEFINE_LOOP_CONDITION(lt, <);
-DEFINE_LOOP_CONDITION(le, <=);
-#undef DEFINE_LOOP_CONDITION
-
-class formula_operator {
-public:
-	const char * const symbol;
-	const bool require_operand;
-	formula_operator(const char * symbol, bool require_operand) :
-		symbol(symbol), require_operand(require_operand) {}
-	virtual t_sli_value calculate(t_sli_value original, t_sli_value operand) = 0;
-};
-
-class sli_flag_value_clipper {
-public:
-	static inline t_sli_value check_clip(t_sli_value value) {
-		return pfc::clip_t<t_sli_value>(value, SLI_MIN_FLAG_VALUE, SLI_MAX_FLAG_VALUE);
-	}
-	static inline t_sli_value check_min(t_sli_value value) {
-		return pfc::max_t<t_sli_value>(value, SLI_MIN_FLAG_VALUE);
-	}
-	static inline t_sli_value check_max(t_sli_value value) {
-		return pfc::min_t<t_sli_value>(value, SLI_MAX_FLAG_VALUE);
-	}
-};
-
-#define DEFINE_FORMULA_OP(name, symbol, value, clipper) \
-class formula_operator_ ##name : public formula_operator { \
-public: \
-	formula_operator_ ##name() : formula_operator(#symbol, true) {}; \
-	virtual t_sli_value calculate(t_sli_value original, t_sli_value operand) { \
-		return sli_flag_value_clipper::check_ ##clipper(value); \
-	} \
-};
-
-DEFINE_FORMULA_OP(set, =, operand, clip);
-DEFINE_FORMULA_OP(add, +=, original+operand, max);
-DEFINE_FORMULA_OP(sub, -=, original-operand, min);
-DEFINE_FORMULA_OP(inc, ++, original+1, max);
-DEFINE_FORMULA_OP(dec, --, original-1, min);
+using namespace loop_helper;
 
 class sli_link : public loop_event_point_baseimpl {
 public:
@@ -103,312 +27,510 @@ public:
 	FB2K_MAKE_SERVICE_INTERFACE(sli_link, loop_event_point);
 };
 
-class sli_link_impl : public sli_link {
-private:
-	t_size smooth_samples;
-protected:
-	sli_link_impl() : from(0), to(0), smooth(false), condition(NULL), refvalue(0), condvar(0), smooth_samples(0),
-		seens(0) {}
-	~sli_link_impl() {
-		if (condition != NULL) delete condition;
+template <typename value_treat_t>
+struct value_clipper {
+	static inline typename value_treat_t::value_t clip_both(typename value_treat_t::value_t value) {
+		return pfc::clip_t<typename value_treat_t::value_t>(value, value_treat_t::min_value, value_treat_t::max_value);
 	}
-public:
-	virtual t_uint64 get_position() const {return from;}
-	virtual t_uint64 get_prepare_position() const {return from - smooth_samples;}
-	virtual bool set_smooth_samples(t_size samples) {
-		if (!smooth) return false;
-		smooth_samples = (t_size) pfc::min_t((t_uint64) samples, pfc::min_t(from, to));
-		return true;
+	static inline typename value_treat_t::value_t clip_min(typename value_treat_t::value_t value) {
+		return pfc::max_t<typename value_treat_t::value_t>(value, value_treat_t::min_value);
 	}
-	t_uint64 from;
-	t_uint64 to;
-	bool smooth;
-	loop_condition * condition;
-	t_sli_value refvalue;
-	t_sli_value condvar;
-	t_size seens;
-
-	virtual void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) {
-		pfc::string8 name, buf;
-		t_size prefixlen;
-		name << p_prefix;
-		prefixlen = name.get_length();
-
-		name.truncate(prefixlen);
-		name << "from";
-		p_info.info_set(name, format_samples_ex(from, sample_rate));
-
-		name.truncate(prefixlen);
-		name << "to";
-		p_info.info_set(name, format_samples_ex(to, sample_rate));
-
-		name.truncate(prefixlen);
-		name << "type";
-		buf << "link";
-		if (smooth) {
-			buf << "; smooth";
-		}
-		if (condition != NULL && condition->is_valid) {
-			buf << "; cond:";
-			buf << "[" << condvar << "]";
-			buf << condition->symbol << refvalue;
-		}
-
-		p_info.info_set(name, buf);	
-	}
-
-	virtual bool has_dynamic_info() const {return true;}
-	virtual bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) {
-		pfc::string8 name;
-		name << p_prefix << "seens";
-		p_info.info_set_int(name, seens);
-		return true;
-	}
-	virtual bool reset_dynamic_info(file_info & p_info, const char * p_prefix) {
-		pfc::string8 name;
-		name << p_prefix << "seens";
-		return p_info.info_remove(name);
-	}
-
-	virtual void check() const {
-		if (from == to) throw exception_loop_bad_point();
-	}
-	virtual bool check_condition(loop_type_base::ptr p_input);
-	virtual bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort);
-	virtual bool process(loop_type_base::ptr p_input, abort_callback & p_abort) {
-		// this event do not process on no_looping
-		if (p_input->get_no_looping() || !check_condition(p_input)) return false;
-		p_input->raw_seek(to, p_abort);
-		++seens;
-		return true;
+	static inline typename value_treat_t::value_t clip_max(typename value_treat_t::value_t value) {
+		return pfc::min_t<typename value_treat_t::value_t>(value, value_treat_t::max_value);
 	}
 };
 
-class sli_label : public loop_event_point_baseimpl {
-public:
-	sli_label() : loop_event_point_baseimpl(on_looping | on_no_looping), position(0), seens(0) {}
-	virtual t_uint64 get_position() const {return position;}
-	virtual t_uint64 get_prepare_position() const {return position;}
-	t_uint64 position;
-	t_size seens;
-	pfc::string8 name;
-	virtual void check() const {}
-	virtual void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) {
-		pfc::string8 name, buf;
-		t_size prefixlen;
-		name << p_prefix;
-		prefixlen = name.get_length();
+// {808359F5-36A6-4b67-BF0D-5FA83C404035}
+static const GUID guid_cfg_sli_label_log = 
+{ 0x808359f5, 0x36a6, 0x4b67, { 0xbf, 0xd, 0x5f, 0xa8, 0x3c, 0x40, 0x40, 0x35 } };
+advconfig_checkbox_factory cfg_sli_label_logging("SLI Label Logging",guid_cfg_sli_label_log,loop_type_base::guid_cfg_branch_loop,0,false);
 
-		name.truncate(prefixlen);
-		name << "type";
-		p_info.info_set(name, "label");
+template <typename sli_value_t, int sli_num_flags, sli_value_t sli_min_value, sli_value_t sli_max_value, typename loop_type_sli_t>
+struct sli_processor {
+	typedef sli_value_t value_t;
+	enum {
+		num_flags = sli_num_flags,
+		min_value = sli_min_value,
+		max_value = sli_max_value,
+	};
+	struct flag_treat_t {
+		typedef sli_value_t value_t;
+		enum {
+			min_value = 0,
+			max_value = sli_num_flags + 1,
+		};
+	};
+	typedef value_clipper<flag_treat_t> flag_clipper;
+	struct value_treat_t {
+		typedef sli_value_t value_t;
+		enum {
+			min_value = sli_min_value,
+			max_value = sli_max_value,
+		};
+	};
+	typedef value_clipper<value_treat_t> value_clipper;
 
-		name.truncate(prefixlen);
-		name << "pos";
-		p_info.info_set(name, format_samples_ex(position, sample_rate));
+	class loop_condition {
+	public:
+		loop_condition(const char * confname, const char * symbol, bool is_valid) :
+			confname(confname), symbol(symbol), is_valid(is_valid) {}
+		virtual ~loop_condition() {}
 
-		if (this->name) {
-			if (this->name[0] == ':') {
-				name.truncate(prefixlen);
-				name << "formula";
-				p_info.info_set(name, this->name.get_ptr() + 1);
-			} else {
-				name.truncate(prefixlen);
-				name << "name";
-				p_info.info_set(name, this->name);
+		const char * const confname;
+		const char * const symbol;
+		const bool is_valid;
+		virtual bool check(value_t a, value_t b) const = 0;
+	};
+
+	class loop_condition_impl : public loop_condition {
+	public:
+		std::function<bool(sli_value_t, sli_value_t)> oper;
+
+		loop_condition_impl(const char * confname, const char * symbol, bool is_valid, std::function<bool(value_t, value_t)> oper) :
+			loop_condition(confname, symbol, is_valid), oper(oper) {}
+
+		virtual ~loop_condition_impl() {}
+		virtual bool check(value_t a, value_t b) const override {
+			return oper(a, b);
+		}
+	};
+
+	struct loop_conditions {
+		loop_condition** conds;
+
+		loop_conditions() {
+			struct condition_spec {
+				const char* confname;
+				const char* symbol;
+				bool is_valid;
+				std::function<bool(value_t a, value_t b)> oper;
+			};
+			struct condition_spec specs[] = {
+				{ "no", nullptr, false, [](value_t, value_t) -> bool { return true; } },
+#define DEFINE_LOOP_CONDITION(name, op) \
+				{ #name, #op, true, [](value_t a, value_t b) -> bool { return a op b; }}
+				DEFINE_LOOP_CONDITION(eq, ==),
+				DEFINE_LOOP_CONDITION(ne, != ),
+				DEFINE_LOOP_CONDITION(gt, >),
+				DEFINE_LOOP_CONDITION(ge, >= ),
+				DEFINE_LOOP_CONDITION(lt, <),
+				DEFINE_LOOP_CONDITION(le, <= ),
+#undef DEFINE_LOOP_CONDITION
+			};
+
+			size_t num = sizeof(specs) / sizeof(specs[0]);
+			conds = new loop_condition*[num + 1];
+			for (size_t i = 0; i < num; ++i) {
+				conds[i] = new loop_condition_impl(specs[i].confname, specs[i].symbol, specs[i].is_valid, specs[i].oper);
+			}
+			conds[num] = nullptr;
+		}
+		~loop_conditions() {
+			delete[] conds;
+		}
+
+		loop_condition const* parse(const char* value) const {
+			for (loop_condition **ptr = conds; *ptr != nullptr; ++ptr) {
+				if (!pfc::stricmp_ascii((*ptr)->confname, value)) return *ptr;
+			}
+			return nullptr;
+		}
+	};
+
+	class formula_operator {
+	public:
+		const char * const symbol;
+		const bool require_operand;
+		formula_operator(const char * symbol, bool require_operand) :
+			symbol(symbol), require_operand(require_operand) {}
+		virtual ~formula_operator() {}
+
+		virtual value_t calculate(value_t original, value_t operand) const = 0;
+	};
+
+#define DEFINE_FORMULA_OP(name, symbol, value, clipper) \
+	class formula_operator_ ##name : public formula_operator { \
+	public: \
+	formula_operator_ ##name() : formula_operator(#symbol, true) {}; \
+	virtual value_t calculate(value_t original, value_t operand) const { \
+	return value_clipper::clip_ ##clipper(value); \
+	} \
+	};
+
+	DEFINE_FORMULA_OP(set, = , operand, both);
+	DEFINE_FORMULA_OP(add, +=, original + operand, max);
+	DEFINE_FORMULA_OP(sub, -=, original - operand, min);
+	DEFINE_FORMULA_OP(inc, ++, original + 1, max);
+	DEFINE_FORMULA_OP(dec, --, original - 1, min);
+#undef DEFINE_FORMULA_OP
+
+	class link_impl : public sli_link {
+	private:
+		t_size smooth_samples;
+	protected:
+		link_impl() : smooth_samples(0), from(0), to(0), smooth(false), condition(nullptr), refvalue(0), condvar(0),
+			seens(0) {}
+		~link_impl() {}
+	public:
+		virtual t_uint64 get_position() const override { return from; }
+		virtual t_uint64 get_prepare_position() const override { return from - smooth_samples; }
+		virtual bool set_smooth_samples(t_size samples) override {
+			if (!smooth) return false;
+			smooth_samples = static_cast<t_size>(pfc::min_t(static_cast<t_uint64>(samples), pfc::min_t(from, to)));
+			return true;
+		}
+		t_uint64 from;
+		t_uint64 to;
+		bool smooth;
+		loop_condition const* condition;
+		typename value_treat_t::value_t refvalue;
+		typename flag_treat_t::value_t condvar;
+		t_size seens;
+
+		virtual void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
+			pfc::string8 name, buf;
+			t_size prefixlen;
+			name << p_prefix;
+			prefixlen = name.get_length();
+
+			name.truncate(prefixlen);
+			name << "from";
+			p_info.info_set(name, format_samples_ex(from, sample_rate));
+
+			name.truncate(prefixlen);
+			name << "to";
+			p_info.info_set(name, format_samples_ex(to, sample_rate));
+
+			name.truncate(prefixlen);
+			name << "type";
+			buf << "link";
+			if (smooth) {
+				buf << "; smooth";
+			}
+			if (condition != nullptr && condition->is_valid) {
+				buf << "; cond:";
+				buf << "[" << condvar << "]";
+				buf << condition->symbol << refvalue;
+			}
+
+			p_info.info_set(name, buf);
+		}
+
+		virtual bool has_dynamic_info() const override { return true; }
+		virtual bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 /*sample_rate*/) override {
+			pfc::string8 name;
+			name << p_prefix << "seens";
+			p_info.info_set_int(name, seens);
+			return true;
+		}
+		virtual bool reset_dynamic_info(file_info & p_info, const char * p_prefix) override {
+			pfc::string8 name;
+			name << p_prefix << "seens";
+			return p_info.info_remove(name);
+		}
+
+		virtual void check() const override {
+			if (from == to) throw exception_loop_bad_point();
+		}
+		virtual bool check_condition(loop_type_base::ptr p_input) {
+			typename loop_type_sli_t::ptr p_input_special;
+			if (p_input->service_query_t<loop_type_sli_t>(p_input_special)) {
+				return p_input_special->check_condition(*this);
+			}
+			return true;
+		}
+		virtual bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) override {
+			// this event do not process on no_looping
+			if ((p_input->get_no_looping() && from >= to) || !check_condition(p_input)) return false;
+			++seens;
+			t_size point = pfc::downcast_guarded<t_size>(from - p_start);
+			typename loop_type_sli_t::ptr p_input_special;
+			if (!smooth || !p_input->service_query_t<loop_type_sli_t>(p_input_special)) {
+				truncate_chunk(p_chunk, p_raw, point);
+				p_input->raw_seek(to, p_abort);
+				return true;
+			}
+			// smooth
+			PFC_ASSERT(p_raw == nullptr); // we do not support raw streaming with smoothing
+			t_size smooth_first_samples = smooth_samples;
+			t_size require_samples = point + p_input_special->get_crossfade_samples_half();
+			t_size samples = p_chunk.get_sample_count();
+			if (require_samples > samples)
+				samples += p_input->get_more_chunk(p_chunk, p_raw, p_abort, require_samples - samples);
+			if (require_samples < samples)
+				truncate_chunk(p_chunk, p_raw, require_samples);// only debug mode ?
+			t_size smooth_latter_samples = pfc::min_t(require_samples, samples) - point;
+			// seek
+			p_input->raw_seek(to - smooth_first_samples, p_abort);
+			// get new samples
+			audio_chunk_impl_temporary ptmp_chunk;
+			samples = p_input->get_more_chunk(ptmp_chunk, nullptr, p_abort, smooth_first_samples + smooth_latter_samples);
+			smooth_latter_samples = pfc::min_t(samples - smooth_first_samples, smooth_latter_samples);
+			// crossfading
+			loop_helper::do_crossfade(
+				p_chunk, point - smooth_first_samples,
+				ptmp_chunk, 0,
+				smooth_first_samples, 0, 50);
+			loop_helper::do_crossfade(
+				p_chunk, point,
+				ptmp_chunk, smooth_first_samples,
+				smooth_latter_samples, 50, 100);
+			p_chunk.set_sample_count(point + smooth_latter_samples);
+			t_size smooth_total_samples = smooth_first_samples + smooth_latter_samples;
+			audio_chunk_partial_ref latter = audio_chunk_partial_ref(
+				ptmp_chunk, smooth_total_samples, samples - smooth_total_samples);
+			combine_audio_chunks(p_chunk, latter);
+			return true;
+		}
+		virtual bool process(loop_type_base::ptr p_input, abort_callback & p_abort) override {
+			// this event do not process on no_looping
+			if (p_input->get_no_looping() || !check_condition(p_input)) return false;
+			p_input->raw_seek(to, p_abort);
+			++seens;
+			return true;
+		}
+	};
+
+	class label : public loop_event_point_baseimpl {
+	public:
+		label() : loop_event_point_baseimpl(on_looping | on_no_looping), position(0), seens(0) {}
+		virtual t_uint64 get_position() const override { return position; }
+		virtual t_uint64 get_prepare_position() const override { return position; }
+		t_uint64 position;
+		t_size seens;
+		pfc::string8 name;
+		virtual void check() const override {}
+		virtual void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
+			pfc::string8 name;
+			t_size prefixlen;
+			name << p_prefix;
+			prefixlen = name.get_length();
+
+			name.truncate(prefixlen);
+			name << "type";
+			p_info.info_set(name, "label");
+
+			name.truncate(prefixlen);
+			name << "pos";
+			p_info.info_set(name, format_samples_ex(position, sample_rate));
+
+			if (this->name) {
+				if (this->name[0] == ':') {
+					name.truncate(prefixlen);
+					name << "formula";
+					p_info.info_set(name, this->name.get_ptr() + 1);
+				}
+				else {
+					name.truncate(prefixlen);
+					name << "name";
+					p_info.info_set(name, this->name);
+				}
 			}
 		}
-	}
 
-	virtual bool has_dynamic_info() const {return true;}
-	virtual bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) {
-		pfc::string8 name;
-		name << p_prefix << "seens";
-		p_info.info_set_int(name, seens);
-		return true;
-	}
-	virtual bool reset_dynamic_info(file_info & p_info, const char * p_prefix) {
-		pfc::string8 name;
-		name << p_prefix << "seens";
-		return p_info.info_remove(name);
-	}
+		virtual bool has_dynamic_info() const override { return true; }
+		virtual bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 /*sample_rate*/) override {
+			pfc::string8 name;
+			name << p_prefix << "seens";
+			p_info.info_set_int(name, seens);
+			return true;
+		}
+		virtual bool reset_dynamic_info(file_info & p_info, const char * p_prefix) override {
+			pfc::string8 name;
+			name << p_prefix << "seens";
+			return p_info.info_remove(name);
+		}
 
-	virtual bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) {
-		return process(p_input, p_abort);
-	}
-	virtual bool process(loop_type_base::ptr p_input, abort_callback & p_abort);
-};
+		virtual bool process(loop_type_base::ptr p_input, t_uint64 /*p_start*/, audio_chunk & /*p_chunk*/, mem_block_container * /*p_raw*/, abort_callback & p_abort) override {
+			return process(p_input, p_abort);
+		}
+		virtual bool process(loop_type_base::ptr p_input, abort_callback & /*p_abort*/) override {
+			// this event do not process on no_looping
+			if (cfg_sli_label_logging.get()) {
+				console::formatter() << "SLI: Label: " << name << " at " <<
+					format_samples_ex(get_position(), p_input->get_sample_rate());
+			}
+			++seens;
+			if (name[0] != ':') return false;
+			typename loop_type_sli_t::ptr p_input_special;
+			if (p_input->service_query_t<loop_type_sli_t>(p_input_special)) {
+				p_input_special->process_formula(name.get_ptr() + 1);
+			}
+			return false;
+		}
+	};
 
-class sli_label_formula {
-public:
-	sli_label_formula() : oper(NULL) {}
-	~sli_label_formula() {
-		if (oper != NULL) delete oper;
-	}
-	t_sli_value flag;
-	formula_operator * oper;
-	bool indirect;
-	t_sli_value value;
-};
+	class label_formula {
+	public:
+		label_formula() : oper(nullptr) {}
+		~label_formula() {
+			if (oper != nullptr) delete oper;
+		}
+		value_t flag;
+		formula_operator const * oper;
+		bool indirect;
+		value_t value;
+	};
 
-bool parse_sli_entity(const char * & ptr,pfc::string8 & name,pfc::string8 & value) {
-	char delimiter = '\0';
-	char tmp;
-	t_size n = 0;
-	while(isspace((unsigned char) *ptr)) ptr++;
-	while(tmp = ptr[n], tmp && !isspace((unsigned char) tmp) && tmp != '=') n++;
-	if (!ptr[n]) return false;
-	name.set_string(ptr, n);
-	ptr += n;
-	while(isspace((unsigned char) *ptr)) ptr++;
-	if (*ptr != '=') return false;
-	ptr++;
-	// check delimiter
-	if (*ptr == '\'' || *ptr == '"') {
-		delimiter = *ptr;
+	static bool parse_entity(const char * & ptr, pfc::string8 & name, pfc::string8 & value) {
+		char delimiter = '\0';
+		char tmp;
+		t_size n = 0;
+		while (isspace(*ptr)) ptr++;
+		while (tmp = ptr[n], tmp && !isspace(tmp) && tmp != '=') n++;
+		if (!ptr[n]) return false;
+		name.set_string(ptr, n);
+		ptr += n;
+		while (isspace(*ptr)) ptr++;
+		if (*ptr != '=') return false;
 		ptr++;
+		// check delimiter
+		if (*ptr == '\'' || *ptr == '"') {
+			delimiter = *ptr;
+			ptr++;
+		}
+		if (!*ptr) return false;
+
+		n = 0;
+		if (delimiter == '\0') {
+			while (tmp = ptr[n], tmp && !isspace(tmp) && tmp != ';') n++;
+		}
+		else {
+			while (tmp = ptr[n], tmp && tmp != delimiter) n++;
+		}
+		if (!ptr[n]) return false;
+		value.set_string(ptr, n);
+		ptr += n;
+		if (*ptr == delimiter) ptr++;
+		while (*ptr == ';' || isspace(*ptr)) ptr++;
+		return true;
 	}
-	if (!*ptr) false;
 
-	n = 0;
-	if (delimiter == '\0') {
-		while(tmp = ptr[n], tmp && !isspace((unsigned char) tmp) && tmp != ';') n++;
-	} else {
-		while(tmp = ptr[n], tmp && tmp != delimiter) n++;
-	}
-	if (!ptr[n]) return false;
-	value.set_string(ptr, n);
-	ptr += n;
-	if (*ptr == delimiter) ptr++;
-	while(*ptr == ';' || isspace((unsigned char) *ptr)) ptr++;
-	return true;
-}
+	static bool parse_link(const char * & ptr, const loop_conditions& conds, service_ptr_t<link_impl> link) {
+		// must point '{' , which indicates start of the block.
+		if (*ptr != '{') return false;
+		ptr++;
 
-bool parse_sli_link(const char * & ptr,service_ptr_t<sli_link_impl> link) {
-	// must point '{' , which indicates start of the block.
-	if(*ptr != '{') return false;
-	ptr++;
-
-	while (*ptr) {
-		if (isspace((unsigned char) *ptr)) {
-			while (isspace((unsigned char) *ptr)) ptr++;
-		} else if (*ptr == '}') {
-			break;
-		} else {
-			pfc::string8 name, value;
-			if (!parse_sli_entity(ptr, name, value)) return false;
-			if (!pfc::stricmp_ascii(name, "From")) {
-				if (!pfc::string_is_numeric(value)) return false;
-				link->from = pfc::atoui64_ex(value, ~0);
-			} else if (!pfc::stricmp_ascii(name, "To")) {
-				if (!pfc::string_is_numeric(value)) return false;
-				link->to = pfc::atoui64_ex(value, ~0);
-			} else if (!pfc::stricmp_ascii(name, "Smooth")) {
-				if (!pfc::stricmp_ascii(value, "True") || !pfc::stricmp_ascii(value, "Yes")) {
-					link->smooth = true;
-				} else if (!pfc::stricmp_ascii(value, "False") || !pfc::stricmp_ascii(value, "No")) {
-					link->smooth = false;
-				} else {
-					// parse error
+		while (*ptr) {
+			if (isspace(*ptr)) {
+				while (isspace(*ptr)) ptr++;
+			}
+			else if (*ptr == '}') {
+				break;
+			}
+			else {
+				pfc::string8 name, value;
+				if (!parse_entity(ptr, name, value)) return false;
+				if (!pfc::stricmp_ascii(name, "From")) {
+					if (!pfc::string_is_numeric(value)) return false;
+					link->from = pfc::atoui64_ex(value, ~0);
+				}
+				else if (!pfc::stricmp_ascii(name, "To")) {
+					if (!pfc::string_is_numeric(value)) return false;
+					link->to = pfc::atoui64_ex(value, ~0);
+				}
+				else if (!pfc::stricmp_ascii(name, "Smooth")) {
+					if (!pfc::stricmp_ascii(value, "True") || !pfc::stricmp_ascii(value, "Yes")) {
+						link->smooth = true;
+					}
+					else if (!pfc::stricmp_ascii(value, "False") || !pfc::stricmp_ascii(value, "No")) {
+						link->smooth = false;
+					}
+					else {
+						// parse error
+						return false;
+					}
+				}
+				else if (!pfc::stricmp_ascii(name, "Condition")) {
+					link->condition = conds.parse(value);
+					if (link->condition == nullptr) return false;
+				}
+				else if (!pfc::stricmp_ascii(name, "RefValue")) {
+					if (!pfc::string_is_numeric(value)) return false;
+					link->refvalue = value_clipper::clip_both(pfc::atoui_ex(value, ~0));
+				}
+				else if (!pfc::stricmp_ascii(name, "CondVar")) {
+					if (!pfc::string_is_numeric(value)) return false;
+					link->condvar = flag_clipper::clip_both(pfc::atoui_ex(value, ~0));
+				}
+				else {
 					return false;
 				}
-			} else if (!pfc::stricmp_ascii(name, "Condition")) {
-				if (!pfc::stricmp_ascii(value, "no")) {
-					link->condition = new loop_condition_no();
-				} else if (!pfc::stricmp_ascii(value, "eq")) {
-					link->condition = new loop_condition_eq();
-				} else if (!pfc::stricmp_ascii(value, "ne")) {
-					link->condition = new loop_condition_ne();
-				} else if (!pfc::stricmp_ascii(value, "gt")) {
-					link->condition = new loop_condition_gt();
-				} else if (!pfc::stricmp_ascii(value, "ge")) {
-					link->condition = new loop_condition_ge();
-				} else if (!pfc::stricmp_ascii(value, "lt")) {
-					link->condition = new loop_condition_lt();
-				} else if (!pfc::stricmp_ascii(value, "le")) {
-					link->condition = new loop_condition_le();
-				} else {
+			}
+		}
+
+		if (*ptr != '}') return false;
+		ptr++;
+		return true;
+	}
+
+	static bool parse_label(const char * & ptr, service_ptr_t<label> label) {
+		// must point '{' , which indicates start of the block.
+		if (*ptr != '{') return false;
+		ptr++;
+
+		while (*ptr) {
+			if (isspace(*ptr)) {
+				while (isspace(*ptr)) ptr++;
+			}
+			else if (*ptr == '}') {
+				break;
+			}
+			else {
+				pfc::string8 name, value;
+				if (!parse_entity(ptr, name, value)) return false;
+				if (!pfc::stricmp_ascii(name, "Position")) {
+					if (!pfc::string_is_numeric(value)) return false;
+					label->position = pfc::atoui64_ex(value, ~0);
+				}
+				else if (!pfc::stricmp_ascii(name, "Name")) {
+					label->name.set_string(value);
+				}
+				else {
 					return false;
 				}
-			} else if (!pfc::stricmp_ascii(name, "RefValue")) {
-				if (!pfc::string_is_numeric(value)) return false;
-				link->refvalue = pfc::clip_t<t_sli_value>(pfc::atoui_ex(value, ~0), SLI_MIN_FLAG_VALUE, SLI_MAX_FLAG_VALUE);
-			} else if (!pfc::stricmp_ascii(name, "CondVar")) {
-				if (!pfc::string_is_numeric(value)) return false;
-				link->condvar = pfc::clip_t<t_sli_value>(pfc::atoui_ex(value, ~0), 0, SLI_FLAGS-1);
-			} else {
-				return false;
 			}
 		}
+
+		if (*ptr != '}') return false;
+		ptr++;
+		return true;
 	}
 
-	if (*ptr != '}') return false;
-	ptr++;
-	return true;
-}
-
-bool parse_sli_label(const char * & ptr,service_ptr_t<sli_label> label) {
-	// must point '{' , which indicates start of the block.
-	if(*ptr != '{') return false;
-	ptr++;
-
-	while (*ptr) {
-		if (isspace((unsigned char) *ptr)) {
-			while (isspace((unsigned char) *ptr)) ptr++;
-		} else if (*ptr == '}') {
-			break;
-		} else {
-			pfc::string8 name, value;
-			if (!parse_sli_entity(ptr, name, value)) return false;
-			if (!pfc::stricmp_ascii(name, "Position")) {
-				if (!pfc::string_is_numeric(value)) return false;
-				label->position = pfc::atoui64_ex(value, ~0);
-			} else if (!pfc::stricmp_ascii(name, "Name")) {
-				label->name.set_string(value);
-			} else {
-				return false;
-			}
-		}
-	}
-
-	if (*ptr != '}') return false;
-	ptr++;
-	return true;
-}
-
-bool parse_sli_label_formula(const char * p_formula, sli_label_formula & p_out) {
-	const char * p = p_formula;
-	t_size ptr;
-	// starts with '['
-	if (*p != '[') return false;
-	p++;
-	ptr = 0;
-	while (pfc::char_is_numeric(p[ptr])) ptr++;
-	if (ptr == 0) return false;
-	p_out.flag = pfc::clip_t<t_sli_value>(pfc::atoui_ex(p, ptr), 0, SLI_FLAGS-1);
-	p += ptr;
-	// after flag, should be ']'
-	if (*p != ']') return false;
-	p++;
-	bool sign = false;
-	switch (*p) {
+	static bool parse_label_formula(const char * p_formula, label_formula & p_out) {
+		const char * p = p_formula;
+		t_size i;
+		// starts with '['
+		if (*p != '[') return false;
+		p++;
+		i = 0;
+		while (pfc::char_is_numeric(p[i])) i++;
+		if (i == 0) return false;
+		p_out.flag = flag_clipper::clip_both(pfc::atoui_ex(p, i));
+		p += i;
+		// after flag, should be ']'
+		if (*p != ']') return false;
+		p++;
+		bool sign = false;
+		switch (*p) {
 		case '=':
 			p_out.oper = new formula_operator_set();
 			break;
 		case '+':
 			sign = true;
 		case '-':
-			if (*p == *(p+1)) {
-				if (sign) 
+			if (*p == *(p + 1)) {
+				if (sign)
 					p_out.oper = new formula_operator_inc();
 				else
 					p_out.oper = new formula_operator_dec();
 				p++;
 				break;
-			} else if (*(p+1) == '=') {
+			}
+			else if (*(p + 1) == '=') {
 				if (sign)
 					p_out.oper = new formula_operator_add();
-				else 
+				else
 					p_out.oper = new formula_operator_sub();
 				p++;
 				break;
@@ -416,108 +538,48 @@ bool parse_sli_label_formula(const char * p_formula, sli_label_formula & p_out) 
 		default:
 			// unknown operator
 			return false;
-	}
-	p++;
-	if (!p_out.oper->require_operand) return true;
-	p_out.indirect = false;
-	if (*p == '[') {
-		p_out.indirect = true;
-		p++;
-	}
-	ptr = 0;
-	while (pfc::char_is_numeric(p[ptr])) ptr++;
-	if (ptr == 0) return false;
-	if (p_out.indirect)
-		p_out.value = pfc::clip_t<t_sli_value>(pfc::atoui_ex(p, ptr), 0, SLI_FLAGS-1);
-	else
-		p_out.value = pfc::clip_t<t_sli_value>(pfc::atoui_ex(p, ptr), SLI_MIN_FLAG_VALUE, SLI_MAX_FLAG_VALUE);
-	p += ptr;
-	if (p_out.indirect) {
-		if (*p != ']') return false;
-		p++;
-	}
-	if (*p) return false;
-	return true;
-}
-
-void do_crossfade(audio_sample * p_dest, const audio_sample * p_src1, const audio_sample * p_src2,
-	int nch, t_size samples, t_uint ratiostart, t_uint ratioend) {
-	audio_sample blend_step =
-		(audio_sample)((ratioend - ratiostart) / 100.0 / samples);
-	audio_sample ratio = (audio_sample)ratiostart / 100;
-	while (samples) {
-		for (int ch = nch-1; ch >= 0; ch--) {
-			*p_dest = *p_src1 + (*p_src2 - *p_src1) * ratio;
-			p_dest++; p_src1++; p_src2++;
 		}
-		samples--;
-		ratio += blend_step;
+		p++;
+		if (!p_out.oper->require_operand) return true;
+		p_out.indirect = false;
+		if (*p == '[') {
+			p_out.indirect = true;
+			p++;
+		}
+		i = 0;
+		while (pfc::char_is_numeric(p[i])) i++;
+		if (i == 0) return false;
+		if (p_out.indirect)
+			p_out.value = flag_clipper::clip_both(pfc::atoui_ex(p, i));
+		else
+			p_out.value = value_clipper::clip_both(pfc::atoui_ex(p, i));
+		p += i;
+		if (p_out.indirect) {
+			if (*p != ']') return false;
+			p++;
+		}
+		if (*p) return false;
+		return true;
 	}
-}
-
-void do_crossfade(audio_chunk & p_dest,t_size destpos,const audio_chunk & p_src1,t_size src1pos,
-	const audio_chunk & p_src2,t_size src2pos,t_size samples,t_uint ratiostart,t_uint ratioend)
-{
-	if(samples == 0) return; // nothing to do
-
-	// sanity check
-	if (p_src1.get_srate() != p_src2.get_srate() ||
-		p_src1.get_channel_config() != p_src2.get_channel_config() ||
-		p_src1.get_channels() != p_src2.get_channels() ||
-		p_dest.get_srate() != p_src1.get_srate() ||
-		p_dest.get_channel_config() != p_src1.get_channel_config() ||
-		p_dest.get_channels() != p_src1.get_channels()) {
-		throw exception_unexpected_audio_format_change();
-	}
-	// length check
-	if (p_src1.get_sample_count() < (src1pos + samples) ||
-		p_src2.get_sample_count() < (src2pos + samples)) {
-		throw exception_io("p_src1 or p_src2 unsufficient sample");
-	}
-	p_dest.pad_with_silence(destpos + samples);
-	int nch = p_dest.get_channels();
-	audio_sample * pd = p_dest.get_data() + (destpos*nch);
-	const audio_sample * ps1 = p_src1.get_data() + (src1pos*nch);
-	const audio_sample * ps2 = p_src2.get_data() + (src2pos*nch);
-	do_crossfade(pd, ps1, ps2, nch, samples, ratiostart, ratioend);
-}
-
-void do_crossfade(audio_chunk & p_dest,t_size destpos,const audio_chunk & p_src,t_size srcpos,
-	t_size samples,t_uint ratiostart,t_uint ratioend)
-{
-	if(samples == 0) return; // nothing to do
-
-	// sanity check
-	if (p_dest.get_srate() != p_src.get_srate() ||
-		p_dest.get_channel_config() != p_src.get_channel_config() ||
-		p_dest.get_channels() != p_src.get_channels()) {
-		throw exception_unexpected_audio_format_change();
-	}
-	// length check
-	if (p_dest.get_sample_count() < (destpos + samples) ||
-		p_src.get_sample_count() < (srcpos + samples)) {
-		throw exception_io("p_dest or p_src unsufficient sample");
-	}
-	int nch = p_dest.get_channels();
-	audio_sample * pd = p_dest.get_data() + (destpos*nch);
-	const audio_sample * ps = p_src.get_data() + (srcpos*nch);
-	do_crossfade(pd, pd, ps, nch, samples, ratiostart, ratioend);
-}
+};
 
 class loop_type_sli : public loop_type_impl_singleinput_base
 {
 private:
+	typedef int sli_value_t;
 	input_decoder::ptr m_input;
 	loop_event_point_list m_points;
-	pfc::array_staticsize_t<int> m_flags;
+	pfc::array_staticsize_t<sli_value_t> m_flags;
 	bool m_no_flags;
 	t_size m_crossfade_samples_half;
+	typedef sli_processor<sli_value_t, 16, 0, 9999, loop_type_sli> sli;
+	sli::loop_conditions sli_conds;
 public:
-	static const char * g_get_name() {return "kirikiri-SLI";}
-	static const char * g_get_short_name() {return "sli";}
-	static bool g_is_our_type(const char * type) {return !pfc::stringCompareCaseInsensitive(type, "sli");}
-	static bool g_is_explicit() {return true;}
-	virtual bool parse(const char * ptr) {
+	static const char * g_get_name() { return "kirikiri-SLI"; }
+	static const char * g_get_short_name() { return "sli"; }
+	static bool g_is_our_type(const char * type) { return !pfc::stringCompareCaseInsensitive(type, "sli"); }
+	static bool g_is_explicit() { return true; }
+	virtual bool parse(const char * ptr) override {
 		if (!*ptr) { return false; }
 		m_points.remove_all();
 		m_no_flags = true;
@@ -529,9 +591,9 @@ public:
 			p_length += 11;
 			p_start += 10;
 			if (!pfc::char_is_numeric(*p_length) || !pfc::char_is_numeric(*p_start)) return false;
-			service_ptr_t<sli_link_impl> link = new service_impl_t<sli_link_impl>();
+			service_ptr_t<sli::link_impl> link = new service_impl_t<sli::link_impl>();
 			link->smooth = false;
-			link->condition = new loop_condition_no();
+			link->condition = sli_conds.parse("no");
 			link->refvalue = 0;
 			link->condvar = 0;
 			__int64 start = _atoi64(p_start);
@@ -547,41 +609,45 @@ public:
 				if (*ptr == '#') {
 					// FIXME: original source checks only beginning-of-line...
 					while (*ptr && *ptr != '\n') ptr++;
-				} else if (isspace((unsigned char) *ptr)) {
-					while (isspace((unsigned char) *ptr)) ptr++;
-				} else if (pfc::stricmp_ascii(ptr, "Link") && !pfc::char_is_ascii_alpha(ptr[4])) {
+				}
+				else if (isspace(*ptr)) {
+					while (isspace(*ptr)) ptr++;
+				}
+				else if (pfc::stricmp_ascii(ptr, "Link") && !pfc::char_is_ascii_alpha(ptr[4])) {
 					ptr += 4;
-					while (isspace((unsigned char) *ptr)) ptr++;
+					while (isspace(*ptr)) ptr++;
 					if (!*ptr) return false;
-					service_ptr_t<sli_link_impl> link = new service_impl_t<sli_link_impl>();
-					if (!parse_sli_link(ptr, link)) return false;
-					if (m_no_flags && link->condition != NULL && link->condition->is_valid)
+					service_ptr_t<sli::link_impl> link = new service_impl_t<sli::link_impl>();
+					if (!sli::parse_link(ptr, sli_conds, link)) return false;
+					if (m_no_flags && link->condition != nullptr && link->condition->is_valid)
 						m_no_flags = false;
 					m_points.add_item(link);
-				} else if (pfc::stricmp_ascii(ptr, "Label") && !pfc::char_is_ascii_alpha(ptr[5])) {
+				}
+				else if (pfc::stricmp_ascii(ptr, "Label") && !pfc::char_is_ascii_alpha(ptr[5])) {
 					ptr += 5;
-					while (isspace((unsigned char) *ptr)) ptr++;
+					while (isspace(*ptr)) ptr++;
 					if (!*ptr) return false;
-					service_ptr_t<sli_label> label = new service_impl_t<sli_label>();
-					if (!parse_sli_label(ptr, label)) return false;
+					service_ptr_t<sli::label> label = new service_impl_t<sli::label>();
+					if (!sli::parse_label(ptr, label)) return false;
 					m_points.add_item(label);
-				} else {
+				}
+				else {
 					return false;
 				}
 			}
 			return true;
 		}
-		return false;		
+		return false;
 	}
-	virtual t_size get_crossfade_samples_half () const {return m_crossfade_samples_half;}
-	virtual bool open_path_internal(file::ptr p_filehint,const char * path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) {
-		open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect,p_skip_hints);
+	virtual t_size get_crossfade_samples_half() const { return m_crossfade_samples_half; }
+	virtual bool open_path_internal(file::ptr p_filehint, const char * path, t_input_open_reason /*p_reason*/, abort_callback & p_abort, bool p_from_redirect, bool p_skip_hints) override {
+		open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect, p_skip_hints);
 		switch_input(m_input, path);
 		return true;
 	}
-	virtual void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) {
+	virtual void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) override {
 		m_crossfade_samples_half = MulDiv_Size(get_sample_rate(), 25, 1000);
-		for (t_size i = m_points.get_count()-1; i != (t_size)-1; i--) {
+		for (t_size i = m_points.get_count() - 1; i != static_cast<t_size>(-1); i--) {
 			service_ptr_t<sli_link> link;
 			if (m_points[i]->service_query_t<sli_link>(link)) {
 				if (link->set_smooth_samples(m_crossfade_samples_half)) {
@@ -592,41 +658,40 @@ public:
 		}
 		switch_points(m_points);
 		if (!m_no_flags) {
-			m_flags.set_size_discard(SLI_FLAGS);
+			m_flags.set_size_discard(sli::num_flags);
 			pfc::fill_array_t(m_flags, 0);
 		}
 		loop_type_impl_singleinput_base::open_decoding_internal(subsong, flags, p_abort);
 	}
-	virtual void get_info(t_uint32 subsong, file_info & p_info,abort_callback & p_abort) {
+	virtual void get_info(t_uint32 subsong, file_info & p_info, abort_callback & p_abort) override {
 		get_input()->get_info(subsong, p_info, p_abort);
 		get_info_for_points(p_info, m_points, get_info_prefix(), get_sample_rate());
 	}
 
-	virtual bool set_dynamic_info(file_info & p_out) {
+	virtual bool set_dynamic_info(file_info & p_out) override {
 		loop_type_impl_base::set_dynamic_info(p_out);
 		if (!m_no_flags) {
 			pfc::string8 buf;
 			t_size num = m_flags.get_size();
-			for ( t_size i = 0; i < num; i++ )
+			for (t_size i = 0; i < num; i++)
 				buf << "/[" << i << "]=" << m_flags[i];
-			p_out.info_set("sli_flags", buf+1);
+			p_out.info_set("sli_flags", buf + 1);
 		}
 		return true;
 	}
 
-	bool check_condition(sli_link_impl & p_link) {
-		if (m_no_flags || p_link.condition == NULL || !p_link.condition->is_valid) 
+	bool check_condition(sli::link_impl & p_link) {
+		if (m_no_flags || p_link.condition == nullptr || !p_link.condition->is_valid)
 			return true; // invalid is always true
 		return p_link.condition->check(m_flags[p_link.condvar], p_link.refvalue);
 	}
 
 	void process_formula(const char * p_formula) {
 		if (m_no_flags) return;
-		sli_label_formula formula;
-		if (parse_sli_label_formula(p_formula, formula)) {
-			t_size flagnum = m_flags.get_size();
+		sli::label_formula formula;
+		if (sli::parse_label_formula(p_formula, formula)) {
 			t_size flag = formula.flag;
-			t_sli_value value = formula.value;
+			sli::value_t value = formula.value;
 			if (formula.indirect) {
 				value = m_flags[value];
 			}
@@ -646,78 +711,12 @@ FOOGUIDDECL const GUID sli_link::class_guid =
 FOOGUIDDECL const GUID loop_type_sli::class_guid = 
 { 0xe697ccc0, 0xabf, 0x46bd, { 0xba, 0x8f, 0xb1, 0x90, 0x96, 0x76, 0x53, 0x68 } };
 
-bool sli_link_impl::check_condition(loop_type_base::ptr p_input) {
-	loop_type_sli::ptr p_input_special;
-	if (p_input->service_query_t<loop_type_sli>(p_input_special)) {
-		return p_input_special->check_condition(*this);
-	}
-	return true;
-}
-
-bool sli_link_impl::process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) {
-	// this event do not process on no_looping
-	if ((p_input->get_no_looping() && from >= to) || !check_condition(p_input)) return false;
-	++seens;
-	t_size point = pfc::downcast_guarded<t_size>(from - p_start);
-	loop_type_sli::ptr p_input_special;
-	if (!smooth || !p_input->service_query_t<loop_type_sli>(p_input_special)) {
-		truncate_chunk(p_chunk,p_raw,point);
-		p_input->raw_seek(to, p_abort);
-		return true;
-	}
-	// smooth
-	PFC_ASSERT(p_raw == NULL); // we do not support raw streaming with smoothing
-	t_size smooth_first_samples = smooth_samples;
-	t_size require_samples = point + p_input_special->get_crossfade_samples_half();
-	t_size samples = p_chunk.get_sample_count();
-	if (require_samples > samples)
-		samples += p_input->get_more_chunk(p_chunk, p_raw, p_abort, require_samples - samples);
-	if (require_samples < samples)
-		truncate_chunk(p_chunk, p_raw, require_samples);// only debug mode ?
-	t_size smooth_latter_samples = pfc::min_t(require_samples, samples) - point;
-	// seek
-	p_input->raw_seek(to - smooth_first_samples, p_abort);
-	// get new samples
-	audio_chunk_impl_temporary ptmp_chunk;
-	samples = p_input->get_more_chunk(ptmp_chunk,NULL,p_abort, smooth_first_samples + smooth_latter_samples);
-	smooth_latter_samples = pfc::min_t(samples - smooth_first_samples, smooth_latter_samples);
-	// crossfading
-	do_crossfade(
-		p_chunk, point-smooth_first_samples,
-		ptmp_chunk, 0,
-		smooth_first_samples, 0, 50);
-	do_crossfade(
-		p_chunk, point,
-		ptmp_chunk, smooth_first_samples,
-		smooth_latter_samples, 50, 100);
-	p_chunk.set_sample_count(point+smooth_latter_samples);
-	t_size smooth_total_samples = smooth_first_samples + smooth_latter_samples;
-	audio_chunk_partial_ref latter = audio_chunk_partial_ref(
-		ptmp_chunk, smooth_total_samples, samples - smooth_total_samples);
-	combine_audio_chunks(p_chunk, latter);
-	return true;
-}
-
-bool sli_label::process(loop_type_base::ptr p_input, abort_callback & p_abort) {
-	// this event do not process on no_looping
-	if (cfg_sli_label_logging.get()) {
-		console::formatter() << "SLI: Label: " << name << " at " << 
-		format_samples_ex(get_position(), p_input->get_sample_rate());
-	}
-	++seens;
-	if (name[0] != ':') return false;
-	loop_type_sli::ptr p_input_special;
-	if (p_input->service_query_t<loop_type_sli>(p_input_special)) {
-		p_input_special->process_formula(name.get_ptr() + 1);
-	}
-	return false;
-}
-
 class input_sli : public input_loop_base
 {
 public:
 	input_sli() : input_loop_base("sli_") {}
-	void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) {
+
+	virtual void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) override {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
 		m_loopfile = p_filehint;
 		m_path = p_path;
@@ -728,7 +727,7 @@ public:
 		p_content_basepath.set_string(p_path, pfc::strlen_t(p_path) - 4); // .sli
 		loop_type_entry::ptr ptr = new service_impl_t<loop_type_impl_t<loop_type_sli>>();
 		loop_type::ptr instance = new service_impl_t<loop_type_sli>();
-		if (instance->parse(m_loopcontent) && instance->open_path(NULL, p_content_basepath, p_reason, p_abort, true, false)) {
+		if (instance->parse(m_loopcontent) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 			m_loopentry = ptr;
 			m_looptype = instance;
 		} else {
@@ -736,8 +735,8 @@ public:
 		}
 	}
 
-	static bool g_is_our_content_type(const char * p_content_type) {return false;}
-	static bool g_is_our_path(const char * p_path,const char * p_extension) {return stricmp_utf8(p_extension, "sli") == 0;}
+	static bool g_is_our_content_type(const char * /*p_content_type*/) {return false;}
+	static bool g_is_our_path(const char * /*p_path*/,const char * p_extension) {return stricmp_utf8(p_extension, "sli") == 0;}
 };
 
 
