@@ -55,7 +55,6 @@ public:
 				loop_type_entry_v2::ptr v2ptr;
 				if (ptr->service_query_t<loop_type_entry_v2>(v2ptr)) {
 					ent.priority = v2ptr->get_priority();
-					v2ptr.release();
 				}
 				ents.add_item(ent);
 			}
@@ -73,9 +72,7 @@ public:
 						m_looptype = instance;
 						continue;
 					}
-					instance.release();
 				}
-				ptr.release();
 			}
 			ents.remove_all();
 		}
