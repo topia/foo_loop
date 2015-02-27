@@ -73,7 +73,7 @@ public:
 	static bool g_is_our_type(const char * type) {return !pfc::stringCompareCaseInsensitive(type, "loopstartlength");}
 	static bool g_is_explicit() {return false;}
 	static t_uint8 g_get_priority() {return 50;} // light weight, so probe earlier
-	virtual bool parse(const char * ptr) override {
+	virtual bool parse(const char * /*ptr*/) override {
 		return true;
 	}
 	virtual bool open_path_internal(file::ptr p_filehint,const char * path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) override {

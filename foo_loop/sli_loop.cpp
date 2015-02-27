@@ -15,7 +15,6 @@ see also:
 
 #include "stdafx.h"
 #include "looping.h"
-#include <utility>
 #include <functional>
 
 using namespace loop_helper;

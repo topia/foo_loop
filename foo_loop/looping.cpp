@@ -189,7 +189,7 @@ namespace loop_helper {
 		return true;
 	}
 
-	bool loop_event_point_simple::set_dynamic_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) {
+	bool loop_event_point_simple::set_dynamic_info(file_info& p_info, const char* p_prefix, t_uint32 /*sample_rate*/) {
 		pfc::string8 name;
 		name << p_prefix << "repeats";
 		p_info.info_set_int(name, repeats);
@@ -693,11 +693,11 @@ namespace loop_helper {
 		m_looptype->on_idle(p_abort);
 	}
 
-	void input_loop_base::retag_set_info(t_uint32 p_subsong, const file_info& p_info, abort_callback& p_abort) {
+	void input_loop_base::retag_set_info(t_uint32 /*p_subsong*/, const file_info& /*p_info*/, abort_callback& /*p_abort*/) {
 		throw exception_io_unsupported_format();
 	}
 
-	void input_loop_base::retag_commit(abort_callback& p_abort) {
+	void input_loop_base::retag_commit(abort_callback& /*p_abort*/) {
 		throw exception_io_unsupported_format();
 	}
 
