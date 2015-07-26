@@ -2,11 +2,11 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="Source Files">
-      <UniqueIdentifier>{8f48abb4-ed31-4da1-acf7-3ad7bcf4f815}</UniqueIdentifier>
+      <UniqueIdentifier>{f9bf58c4-374f-49a5-94db-1f5ae50beca1}</UniqueIdentifier>
       <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
     </Filter>
     <Filter Include="Header Files">
-      <UniqueIdentifier>{81b6d393-8717-4d22-be9e-fd544199bb31}</UniqueIdentifier>
+      <UniqueIdentifier>{07b1c50a-a3ad-4711-9ae0-d1411b80fd7a}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl</Extensions>
     </Filter>
   </ItemGroup>
@@ -47,9 +47,6 @@
     <ClCompile Include="file_move_helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="file_wrapper_simple.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="filetimetools.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -83,9 +80,6 @@
     <ClCompile Include="VisUtils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="wildcard.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="win32_dialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -95,11 +89,17 @@
     <ClCompile Include="window_placement_helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="file_win32_wrapper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CPowerRequest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="writer_wav.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="album_art_helpers.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="bitreader_helper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -149,9 +149,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="file_win32_wrapper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="file_wrapper_simple.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="filetimetools.h">
@@ -208,9 +205,6 @@
     <ClInclude Include="VisUtils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="wildcard.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="win32_dialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -218,6 +212,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="window_placement_helper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ProcessUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fullFileBuffer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CPowerRequest.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="fb2k_threads.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="writer_wav.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
