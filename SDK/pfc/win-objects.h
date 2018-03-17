@@ -1,3 +1,5 @@
+#pragma once
+
 namespace pfc {
 	BOOL winFormatSystemErrorMessage(pfc::string_base & p_out,DWORD p_code);
 
@@ -5,17 +7,18 @@ namespace pfc {
 	void winPrefixPath(pfc::string_base & out, const char * p_path);
 	// Reverse winPrefixPath
 	void winUnPrefixPath(pfc::string_base & out, const char * p_path);
+
+	class LastErrorRevertScope {
+	public:
+		LastErrorRevertScope() : m_val(GetLastError()) {}
+		~LastErrorRevertScope() { SetLastError(m_val); }
+
+	private:
+		const DWORD m_val;
+	};
 }
 
 
-class LastErrorRevertScope {
-public:
-	LastErrorRevertScope() : m_val(GetLastError()) {}
-	~LastErrorRevertScope() {SetLastError(m_val);}
-
-private:
-	const DWORD m_val;
-};
 
 class format_win32_error {
 public:
@@ -45,6 +48,8 @@ struct exception_win32 : public std::exception {
 private:
 	DWORD m_code;
 };
+
+#ifdef PFC_WINDOWS_DESKTOP_APP
 
 void uAddWindowStyle(HWND p_wnd,LONG p_style);
 void uRemoveWindowStyle(HWND p_wnd,LONG p_style);
@@ -94,7 +99,6 @@ private:
 	CGlobalLockScope m_scope;
 };
 
-
 bool IsPointInsideControl(const POINT& pt, HWND wnd);
 bool IsWindowChildOf(HWND child, HWND parent);
 
@@ -111,11 +115,13 @@ public:
 	
 	bool is_valid() const {return m_menu != NULL;}
 private:
-	win32_menu(const win32_menu &);
-	const win32_menu & operator=(const win32_menu &);
+	win32_menu(const win32_menu &) = delete;
+	void operator=(const win32_menu &) = delete;
 
 	HMENU m_menu;
 };
+
+#endif
 
 class win32_event {
 public:
@@ -146,14 +152,15 @@ public:
     static int g_twoEventWait( win32_event & ev1, win32_event & ev2, double timeout );
     static int g_twoEventWait( HANDLE ev1, HANDLE ev2, double timeout );
 private:
-	win32_event(const win32_event&);
-	const win32_event & operator=(const win32_event &);
+	win32_event(const win32_event&) = delete;
+	void operator=(const win32_event &) = delete;
 
 	HANDLE m_handle;
 };
 
 void uSleepSeconds(double p_time,bool p_alertable);
 
+#ifdef PFC_WINDOWS_DESKTOP_APP
 
 class win32_icon {
 public:
@@ -188,7 +195,6 @@ private:
 	HACCEL m_accel;
 	PFC_CLASS_NOT_COPYABLE(win32_accelerator,win32_accelerator);
 };
-
 
 class SelectObjectScope {
 public:
@@ -225,7 +231,7 @@ private:
 	const HDC m_dc;
 	int m_state;
 };
-
+#endif // #ifdef PFC_WINDOWS_DESKTOP_APP
 
 class exception_com : public std::exception {
 public:
@@ -236,13 +242,18 @@ private:
 	HRESULT m_code;
 };
 
+#ifdef PFC_WINDOWS_DESKTOP_APP
+
 // Same format as _WIN32_WINNT macro.
 WORD GetWindowsVersionCode() throw();
+
+#endif
 
 //! Simple implementation of a COM reference counter. The initial reference count is zero, so it can be used with pfc::com_ptr_t<> with plain operator=/constructor rather than attach().
 template<typename TBase> class ImplementCOMRefCounter : public TBase {
 public:
-	TEMPLATE_CONSTRUCTOR_FORWARD_FLOOD(ImplementCOMRefCounter,TBase)
+    template<typename ... arg_t> ImplementCOMRefCounter(arg_t && ... arg) : TBase(std::forward<arg_t>(arg) ...) {}
+
 	ULONG STDMETHODCALLTYPE AddRef() {
 		return ++m_refcounter;
 	}
@@ -277,4 +288,30 @@ namespace pfc {
     bool isShiftKeyPressed();
     bool isCtrlKeyPressed();
     bool isAltKeyPressed();
+
+
+	class winHandle {
+	public:
+		winHandle(HANDLE h_ = INVALID_HANDLE_VALUE) : h(h_) {}
+		~winHandle() { Close(); }
+		void Close() {
+			if (h != INVALID_HANDLE_VALUE && h != NULL ) { CloseHandle(h); h = INVALID_HANDLE_VALUE; }
+		}
+
+		void Attach(HANDLE h_) { Close(); h = h_; }
+		HANDLE Detach() { HANDLE t = h; h = INVALID_HANDLE_VALUE; return t; }
+
+		HANDLE Get() const { return h; }
+		operator HANDLE() const { return h; }
+
+		HANDLE h;
+	private:
+		winHandle(const winHandle&) = delete;
+		void operator=(const winHandle&) = delete;
+	};
+    
+    void winSleep( double seconds );
+    void sleepSeconds(double seconds);
+    void yield();
 }
+

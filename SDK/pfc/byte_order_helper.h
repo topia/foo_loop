@@ -1,5 +1,4 @@
-#ifndef _PFC_BYTE_ORDER_HELPER_
-#define _PFC_BYTE_ORDER_HELPER_
+#pragma once
 
 namespace pfc {
 	void byteswap_raw(void * p_buffer,t_size p_bytes);
@@ -79,13 +78,15 @@ namespace pfc {
 		return ret;
 	}
 
-
-	
+#if ! defined(_MSC_VER) || _MSC_VER >= 1900
+	template<> inline char16_t byteswap_t<char16_t>(char16_t v) { return (char16_t)byteswap_t((uint16_t)v); }
+	template<> inline char32_t byteswap_t<char32_t>(char32_t v) { return (char32_t)byteswap_t((uint32_t)v); }
+#endif
 };
 
 #ifdef _MSC_VER
 
-#if defined(_M_IX86) || defined(_M_X64)
+#if defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM)
 #define PFC_BYTE_ORDER_IS_BIG_ENDIAN 0
 #endif
 
@@ -238,6 +239,3 @@ namespace pfc {
 
 }
 
-
-
-#endif

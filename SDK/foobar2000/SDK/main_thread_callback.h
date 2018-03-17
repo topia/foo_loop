@@ -1,3 +1,5 @@
+#include <functional>
+
 //! Callback object class for main_thread_callback_manager service.
 class NOVTABLE main_thread_callback : public service_base {
 public:
@@ -18,7 +20,7 @@ public:
 	//! Queues a callback object. This can be called from any thread, implementation ensures multithread safety. Implementation will call p_callback->callback_run() once later. To get it called repeatedly, you would need to add your callback again.
 	virtual void add_callback(service_ptr_t<main_thread_callback> p_callback) = 0;
 
-	FB2K_MAKE_SERVICE_INTERFACE_ENTRYPOINT(main_thread_callback_manager);
+	FB2K_MAKE_SERVICE_COREAPI(main_thread_callback_manager);
 };
 
 
@@ -67,7 +69,7 @@ template<typename myservice_t, typename param_t>
 static void callInMainThreadSvc(myservice_t * host, param_t const & param) {
 	typedef _callInMainThreadSvc_t<myservice_t, param_t> impl_t;
 	service_ptr_t<impl_t> obj = new service_impl_t<impl_t>(host, param);
-	static_api_ptr_t<main_thread_callback_manager>()->add_callback( obj );
+	main_thread_callback_manager::get()->add_callback( obj );
 }
 
 
@@ -82,7 +84,22 @@ static void callInMainThreadSvc(myservice_t * host, param_t const & param) {
 class callInMainThreadHelper {
 public:
     
+    typedef std::function< void () > func_t;
+    
     typedef pfc::rcptr_t< bool > killswitch_t;
+    
+    class entryFunc : public main_thread_callback {
+    public:
+        entryFunc( func_t const & func, killswitch_t ks ) : m_ks(ks), m_func(func) {}
+        
+        void callback_run() {
+            if (!*m_ks) m_func();
+        }
+        
+    private:
+        killswitch_t m_ks;
+        func_t m_func;
+    };
     
     template<typename host_t, typename arg_t>
     class entry : public main_thread_callback {
@@ -107,6 +124,10 @@ public:
         killswitch_t m_ks;
         host_t * m_host;
     };
+    
+    void add(func_t f) {
+        add_( new service_impl_t< entryFunc > ( f, m_ks ) );
+    }
     
     template<typename host_t, typename arg_t>
     void add( host_t * host, arg_t const & arg) {
@@ -136,3 +157,11 @@ private:
     killswitch_t m_ks;
     
 };
+
+// Modern helper
+namespace fb2k {
+	// Queue call in main thread
+    void inMainThread( std::function<void () > f );
+	// Call f synchronously if called from main thread, queue call if called from another
+	void inMainThread2( std::function<void () > f );
+}

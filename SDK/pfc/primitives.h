@@ -1,3 +1,7 @@
+#pragma once
+
+#include <functional>
+
 #define tabsize(x) ((size_t)(sizeof(x)/sizeof(*x)))
 #define PFC_TABSIZE(x) ((size_t)(sizeof(x)/sizeof(*x)))
 
@@ -709,8 +713,8 @@ namespace pfc {
 		array_rangecheck_t(p_array,p_from); array_rangecheck_t(p_array,p_to);
 	}
 
-	inline t_int32 rint32(double p_val) {return (t_int32) floor(p_val + 0.5);}
-	inline t_int64 rint64(double p_val) {return (t_int64) floor(p_val + 0.5);}
+	t_int32 rint32(double p_val);
+	t_int64 rint64(double p_val);
 
 
 
@@ -778,7 +782,7 @@ namespace pfc {
 	template<typename t_array>
 	class __list_to_array_enumerator {
 	public:
-		__list_to_array_enumerator(t_array & p_array) : m_array(p_array), m_walk(0) {}
+		__list_to_array_enumerator(t_array & p_array) : m_walk(), m_array(p_array) {}
 		template<typename t_item>
 		void operator() (const t_item & p_item) {
 			PFC_ASSERT(m_walk < m_array.get_size());
@@ -871,12 +875,26 @@ namespace pfc {
 
 	template<typename t_array,typename t_value>
 	void fill_array_t(t_array & p_array,const t_value & p_value);
+
+	class onLeaving {
+	public:
+		onLeaving() {}
+		onLeaving( std::function<void () > f_ ) : f(f_) {}
+		~onLeaving() {
+			if (f) f();
+		}
+		std::function<void () > f;
+	private:
+		void operator=( onLeaving const & ) = delete;
+		onLeaving( const onLeaving & ) = delete;
+	};
+
 };
 
 
 #define PFC_CLASS_NOT_COPYABLE(THISCLASSNAME,THISTYPE) \
 	private:	\
-	THISCLASSNAME(const THISTYPE&); \
-	const THISTYPE & operator=(const THISTYPE &);
+	THISCLASSNAME(const THISTYPE&) = delete; \
+	const THISTYPE & operator=(const THISTYPE &) = delete;
 
 #define PFC_CLASS_NOT_COPYABLE_EX(THISTYPE) PFC_CLASS_NOT_COPYABLE(THISTYPE,THISTYPE)

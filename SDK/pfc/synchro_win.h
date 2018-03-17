@@ -1,3 +1,5 @@
+#pragma once
+
 class _critical_section_base {
 protected:
 	CRITICAL_SECTION sec;
@@ -5,7 +7,13 @@ public:
 	_critical_section_base() {}
 	inline void enter() throw() {EnterCriticalSection(&sec);}
 	inline void leave() throw() {LeaveCriticalSection(&sec);}
-	inline void create() throw() {InitializeCriticalSection(&sec);}
+	inline void create() throw() {
+#ifdef PFC_WINDOWS_DESKTOP_APP
+		InitializeCriticalSection(&sec);
+#else
+		InitializeCriticalSectionEx(&sec,0,0);
+#endif
+	}
 	inline void destroy() throw() {DeleteCriticalSection(&sec);}
 private:
 	_critical_section_base(const _critical_section_base&);
@@ -121,5 +129,8 @@ private:
 
 #define inReadSync( X ) ::pfc::_readWriteLock_scope_read _asdf_l_readWriteLock_scope_read( X )
 #define inWriteSync( X ) ::pfc::_readWriteLock_scope_write _asdf_l_readWriteLock_scope_write( X )
+
+typedef ::critical_section mutex;
+typedef ::c_insync mutexScope;
 
 }

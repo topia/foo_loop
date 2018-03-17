@@ -1,3 +1,5 @@
+#pragma once
+
 namespace pfc {
 	//helper, const methods only
 	class __stringEmpty : public string_base {
@@ -123,6 +125,7 @@ namespace pfc {
 
 		const char * ptr() const {return m_content->get_ptr();}
 		const char * get_ptr() const {return m_content->get_ptr();}
+		const char * c_str() const { return get_ptr(); }
 		t_size length() const {return m_content->get_length();}
 		t_size get_length() const {return m_content->get_length();}
 
@@ -234,6 +237,7 @@ namespace pfc {
 		operator string() const {return str();}
 		string toString() const {return str();}
 		t_size length() const {return m_s.is_valid() ? m_s->length() : strlen(m_ptr);}
+		const char * c_str() const { return ptr(); }
 	private:
 		const char * const m_ptr;
 		string::t_data m_s;
