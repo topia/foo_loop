@@ -1,5 +1,5 @@
 
-#include <stdafx.h>
+#include "stdafx.h"
 #include "looping.h"
 
 
@@ -16,7 +16,7 @@ namespace loop_helper {
 		if (!p_skip_hints) {
 			try {
 				static_api_ptr_t<metadb_io>()->hint_reader(p_input.get_ptr(),path,p_abort);
-			} catch(exception_io_data) {
+			} catch(exception_io_data&) {
 				//Don't fail to decode when this barfs, might be barfing when reading info from another subsong than the one we're trying to decode etc.
 				p_input.release();
 				if (p_file.is_valid()) p_file->reopen(p_abort);
@@ -28,7 +28,7 @@ namespace loop_helper {
 	}
 
 	bool parse_entity(const char * & ptr,pfc::string8 & name,pfc::string8 & value) {
-		char delimiter = '\0';
+		auto delimiter = '\0';
 		char tmp;
 		t_size n = 0;
 		while(isspace(*ptr)) ptr++;
@@ -100,7 +100,7 @@ namespace loop_helper {
 			}
 			set_succ(succ);
 			if (succ) {
-				t_size newsamples = ptmp_chunk.get_sample_count();
+				const auto newsamples = ptmp_chunk.get_sample_count();
 				if (newsamples)
 					combine_audio_chunks(p_chunk, p_raw, ptmp_chunk, ptmp_block);
 				samples += newsamples;
@@ -166,9 +166,8 @@ namespace loop_helper {
 
 	void loop_event_point_simple::get_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) {
 		pfc::string8 name;
-		t_size prefixlen;
 		name << p_prefix;
-		prefixlen = name.get_length();
+		const auto prefixlen = name.get_length();
 
 		name.truncate(prefixlen);
 		name << "from";
@@ -210,7 +209,7 @@ namespace loop_helper {
 		if (check_no_looping(p_input)) return false;
 		++repeats;
 		if (maxrepeats && repeats>=maxrepeats) return false;
-		t_size newsamples = pfc::downcast_guarded<t_size>(from - p_start);
+		const auto newsamples = pfc::downcast_guarded<t_size>(from - p_start);
 		truncate_chunk(p_chunk,p_raw,newsamples);
 		p_input->raw_seek(to, p_abort);
 		return true;
@@ -241,7 +240,7 @@ namespace loop_helper {
 
 	bool loop_event_point_end::process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback&) {
 		if (check_no_looping(p_input)) return false;
-		t_size newsamples = pfc::downcast_guarded<t_size>(position - p_start);
+		const auto newsamples = pfc::downcast_guarded<t_size>(position - p_start);
 		truncate_chunk(p_chunk,p_raw,newsamples);
 		p_input->set_eof(); // to eof
 		return true;
@@ -254,7 +253,7 @@ namespace loop_helper {
 	}
 
 	loop_type_impl_base::dynamic_update_tracker::dynamic_update_tracker():
-		lastupdate(0), updateperiod(0), m_input_switched(false) {}
+		lastupdate(0), updateperiod(0), m_input_switched(false), m_input_switched_pos(-1) {}
 
 	double loop_type_impl_base::get_dynamic_updateperiod() const {
 		return audio_math::samples_to_time(m_dynamic.updateperiod, m_sample_rate);
@@ -331,14 +330,14 @@ namespace loop_helper {
 		order_helper::g_fill(m_perm_by_pos.get_ptr(), m_perm_by_pos.get_size());
 		m_cur_points.sort_get_permutation_t(
 			loop_event_compare<loop_event_point::ptr, loop_event_point::ptr>, m_perm_by_pos.get_ptr());
-		if (m_cur_points_by_pos != nullptr) delete m_cur_points_by_pos;
+		delete m_cur_points_by_pos;
 		m_cur_points_by_pos = new pfc::list_permutation_t<loop_event_point::ptr>(m_cur_points, m_perm_by_pos.get_ptr(), m_perm_by_pos.get_size());
 
 		m_perm_by_prepos.set_size(m_cur_points.get_count());
 		order_helper::g_fill(m_perm_by_prepos.get_ptr(), m_perm_by_prepos.get_size());
 		m_cur_points.sort_get_permutation_t(
 			loop_event_prepos_compare<loop_event_point::ptr, loop_event_point::ptr>, m_perm_by_prepos.get_ptr());
-		if (m_cur_points_by_prepos != nullptr) delete m_cur_points_by_prepos;
+		delete m_cur_points_by_prepos;
 		m_cur_points_by_prepos = new pfc::list_permutation_t<loop_event_point::ptr>(m_cur_points, m_perm_by_prepos.get_ptr(), m_perm_by_prepos.get_size());
 	}
 
@@ -373,13 +372,12 @@ namespace loop_helper {
 	}
 
 	void loop_type_impl_base::do_events(t_uint64 p_start, t_uint64 p_end, abort_callback& p_abort) {
-		t_size nums = get_points_by_pos().get_count();
+		const auto nums = get_points_by_pos().get_count();
 		t_size n;
-		loop_event_point::ptr point;
 		bsearch_points_by_pos(p_start, n);
 			
 		while (n < nums) {
-			point = get_points_by_pos()[n];
+			const auto point = get_points_by_pos()[n];
 			m_nextpointpos = point->get_position();
 			if (m_nextpointpos > p_end) {
 				m_nextpointpos = pfc::min_t(m_nextpointpos, get_prepare_pos(p_end, nums));
@@ -398,18 +396,17 @@ namespace loop_helper {
 	}
 
 	void loop_type_impl_base::do_events(t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) {
-		t_size nums = get_points_by_pos().get_count();
+		const auto nums = get_points_by_pos().get_count();
 		t_size n;
-		loop_event_point::ptr point;
 		// skip p_start itself, because it was proceeded as older's end
 		bsearch_points_by_pos(p_start+1, n);
-		t_uint64 end = p_start + p_chunk.get_sample_count();
-		t_size preplen = get_prepare_length(p_start, end, nums);
+		auto end = p_start + p_chunk.get_sample_count();
+		const auto preplen = get_prepare_length(p_start, end, nums);
 		if (preplen > 0)
 			end += get_more_chunk(p_chunk, p_raw, p_abort, preplen);
 
 		while (n < nums) {
-			point = get_points_by_pos()[n];
+			const auto point = get_points_by_pos()[n];
 			m_nextpointpos = point->get_position();
 			if (m_nextpointpos > end) {
 				m_nextpointpos = pfc::min_t(m_nextpointpos, get_prepare_pos(end, nums));
@@ -426,7 +423,7 @@ namespace loop_helper {
 	}
 
 	bool loop_type_impl_base::set_dynamic_info(file_info& p_out) {
-		t_uint32 sample_rate = get_sample_rate();
+		const auto sample_rate = get_sample_rate();
 		pfc::string8 name;
 		name << get_info_prefix() << "current";
 		p_out.info_set(name, format_samples_ex(get_cur(), sample_rate));
@@ -438,7 +435,7 @@ namespace loop_helper {
 	}
 
 	bool loop_type_impl_base::reset_dynamic_info(file_info& p_out) {
-		bool ret = false;
+		auto ret = false;
 		pfc::string8 name;
 		name << get_info_prefix() << "current";
 		ret |= p_out.info_remove(name);
@@ -450,7 +447,7 @@ namespace loop_helper {
 
 	bool loop_type_impl_base::set_dynamic_info_track(file_info& p_out) {
 		if (!m_current_changed) return false;
-		bool ret = false;
+		auto ret = false;
 		pfc::string8 name;
 		name << get_info_prefix() << "current_file";
 		if (!m_current_fileext.is_empty()) {
@@ -473,7 +470,7 @@ namespace loop_helper {
 
 	bool loop_type_impl_base::reset_dynamic_info_track(file_info& p_out) {
 		if (!m_current_changed) return false;
-		bool ret = false;
+		auto ret = false;
 		pfc::string8 name;
 		name << get_info_prefix() << "current_file";
 		ret |= p_out.info_remove(name);
@@ -485,7 +482,7 @@ namespace loop_helper {
 
 	bool loop_type_impl_base::run_common(audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) {
 		m_dynamic.m_input_switched_pos = m_dynamic_track.m_input_switched_pos = -1;
-		t_uint64 start = get_cur();
+		const auto start = get_cur();
 		t_uint retries = 4; // max retries
 		while (retries > 0 && get_succ()) {
 			get_one_chunk(p_chunk,p_raw,p_abort);
@@ -508,7 +505,7 @@ namespace loop_helper {
 
 	void loop_type_impl_base::get_info_for_points(file_info& p_info, loop_event_point_list& points, const char* p_prefix, t_uint32 p_sample_rate) {
 		for (t_size n = 0, m = points.get_count(); n < m; ++n ) {
-			loop_event_point::ptr point = points[n];
+			auto point = points[n];
 			pfc::string8 name;
 			name << p_prefix << "point_" << pfc::format_int(n, 2) << "_";
 			point->get_info(p_info, name, p_sample_rate);
@@ -516,13 +513,12 @@ namespace loop_helper {
 	}
 
 	loop_type_impl_base::loop_type_impl_base():
-		m_sample_rate(0), m_cur(0), m_succ(false), m_raw_support(true), m_info_prefix("loop_"), 
-		m_cur_points_by_pos(nullptr), m_cur_points_by_prepos(nullptr), m_current_changed(false) {
-	}
+		m_sample_rate(0), m_cur(0), m_no_looping(false), m_succ(false), m_raw_support(true), m_info_prefix("loop_"),
+		m_cur_points_by_pos(nullptr), m_cur_points_by_prepos(nullptr), m_current_changed(false), m_nextpointpos(0) { }
 
 	loop_type_impl_base::~loop_type_impl_base() {
-		if (m_cur_points_by_pos != nullptr) delete m_cur_points_by_pos;
-		if (m_cur_points_by_prepos != nullptr) delete m_cur_points_by_prepos;
+		delete m_cur_points_by_pos;
+		delete m_cur_points_by_prepos;
 	}
 
 	t_uint64 loop_type_impl_base::get_cur() const {
@@ -543,7 +539,7 @@ namespace loop_helper {
 
 	bool loop_type_impl_base::open_path(file::ptr p_filehint, const char* path, t_input_open_reason p_reason, abort_callback& p_abort, bool p_from_redirect, bool p_skip_hints) {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
-		bool ret = open_path_internal(p_filehint,path,p_reason,p_abort,p_from_redirect,p_skip_hints);
+		const auto ret = open_path_internal(p_filehint,path,p_reason,p_abort,p_from_redirect,p_skip_hints);
 		if (ret) {
 			file_info_impl p_info;
 			get_input()->get_info(0, p_info, p_abort);

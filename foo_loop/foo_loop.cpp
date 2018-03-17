@@ -20,7 +20,7 @@ struct loop_type_prioritized_entry {
 };
 
 template<typename t_item1, typename t_item2>
-inline int looptype_priority_compare(const t_item1 & p_item1, const t_item2 & p_item2);
+int looptype_priority_compare(const t_item1 & p_item1, const t_item2 & p_item2);
 
 template<>
 inline int looptype_priority_compare(const loop_type_prioritized_entry & p_item1, const loop_type_prioritized_entry & p_item2) {
@@ -32,7 +32,7 @@ class input_loop : public input_loop_base
 public:
 	input_loop() : input_loop_base("loop_") {}
 
-	virtual void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) override {
+	void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) override {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
 		m_loopfile = p_filehint;
 		m_path = p_path;

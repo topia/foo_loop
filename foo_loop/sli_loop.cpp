@@ -16,6 +16,7 @@ see also:
 #include "stdafx.h"
 #include "looping.h"
 #include <functional>
+#include <utility>
 
 using namespace loop_helper;
 
@@ -28,13 +29,13 @@ public:
 
 template <typename trait_t>
 struct value_clipper {
-	static inline typename trait_t::value_t clip_both(typename trait_t::value_t value) {
+	static typename trait_t::value_t clip_both(typename trait_t::value_t value) {
 		return pfc::clip_t<typename trait_t::value_t>(value, trait_t::min_value, trait_t::max_value);
 	}
-	static inline typename trait_t::value_t clip_min(typename trait_t::value_t value) {
+	static typename trait_t::value_t clip_min(typename trait_t::value_t value) {
 		return pfc::max_t<typename trait_t::value_t>(value, trait_t::min_value);
 	}
-	static inline typename trait_t::value_t clip_max(typename trait_t::value_t value) {
+	static typename trait_t::value_t clip_max(typename trait_t::value_t value) {
 		return pfc::min_t<typename trait_t::value_t>(value, trait_t::max_value);
 	}
 };
@@ -73,7 +74,7 @@ struct sli_processor {
 	public:
 		loop_condition(const char * confname, const char * symbol, bool is_valid) :
 			confname(confname), symbol(symbol), is_valid(is_valid) {}
-		virtual ~loop_condition() {}
+		virtual ~loop_condition() = default;
 
 		const char * const confname;
 		const char * const symbol;
@@ -86,10 +87,11 @@ struct sli_processor {
 		std::function<bool(sli_value_t, sli_value_t)> oper;
 
 		loop_condition_impl(const char * confname, const char * symbol, bool is_valid, std::function<bool(value_t, value_t)> oper) :
-			loop_condition(confname, symbol, is_valid), oper(oper) {}
+			loop_condition(confname, symbol, is_valid), oper(std::move(oper)) {}
 
-		virtual ~loop_condition_impl() {}
-		virtual bool check(value_t a, value_t b) const override {
+		virtual ~loop_condition_impl() = default;
+
+		bool check(value_t a, value_t b) const override {
 			return oper(a, b);
 		}
 	};
@@ -117,7 +119,7 @@ struct sli_processor {
 #undef DEFINE_LOOP_CONDITION
 			};
 
-			size_t num = tabsize(specs);
+			const auto num = tabsize(specs);
 			conds = new loop_condition*[num + 1];
 			for (size_t i = 0; i < num; ++i) {
 				conds[i] = new loop_condition_impl(specs[i].confname, specs[i].symbol, specs[i].is_valid, specs[i].oper);
@@ -140,9 +142,9 @@ struct sli_processor {
 	public:
 		const char * const symbol;
 		const bool require_operand;
-		formula_operator(const char * symbol, bool require_operand) :
+		formula_operator(const char * symbol, const bool require_operand) :
 			symbol(symbol), require_operand(require_operand) {}
-		virtual ~formula_operator() {}
+		virtual ~formula_operator() = default;
 
 		virtual value_t calculate(value_t original, value_t operand) const = 0;
 	};
@@ -150,7 +152,7 @@ struct sli_processor {
 #define DEFINE_FORMULA_OP(name, symbol, value, clipper) \
 	class formula_operator_ ##name : public formula_operator { \
 	public: \
-	formula_operator_ ##name() : formula_operator(#symbol, true) {}; \
+  	formula_operator_ ##name() : formula_operator(#symbol, true) {}; \
 	virtual value_t calculate(value_t original, value_t operand) const { \
 	return value_clipper::clip_ ##clipper(value); \
 	} \
@@ -169,11 +171,12 @@ struct sli_processor {
 	protected:
 		link_impl() : smooth_samples(0), from(0), to(0), smooth(false), condition(nullptr), refvalue(0), condvar(0),
 			seens(0) {}
-		~link_impl() {}
+		~link_impl() = default;
 	public:
-		virtual t_uint64 get_position() const override { return from; }
-		virtual t_uint64 get_prepare_position() const override { return from - smooth_samples; }
-		virtual bool set_smooth_samples(t_size samples) override {
+		t_uint64 get_position() const override { return from; }
+		t_uint64 get_prepare_position() const override { return from - smooth_samples; }
+
+		bool set_smooth_samples(t_size samples) override {
 			if (!smooth) return false;
 			smooth_samples = static_cast<t_size>(pfc::min_t(static_cast<t_uint64>(samples), pfc::min_t(from, to)));
 			return true;
@@ -186,11 +189,10 @@ struct sli_processor {
 		typename flag_trait_t::value_t condvar;
 		t_size seens;
 
-		virtual void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
+		void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
 			pfc::string8 name, buf;
-			t_size prefixlen;
 			name << p_prefix;
-			prefixlen = name.get_length();
+			const auto prefixlen = name.get_length();
 
 			name.truncate(prefixlen);
 			name << "from";
@@ -215,20 +217,22 @@ struct sli_processor {
 			p_info.info_set(name, buf);
 		}
 
-		virtual bool has_dynamic_info() const override { return true; }
-		virtual bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 /*sample_rate*/) override {
+		bool has_dynamic_info() const override { return true; }
+
+		bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 /*sample_rate*/) override {
 			pfc::string8 name;
 			name << p_prefix << "seens";
 			p_info.info_set_int(name, seens);
 			return true;
 		}
-		virtual bool reset_dynamic_info(file_info & p_info, const char * p_prefix) override {
+
+		bool reset_dynamic_info(file_info & p_info, const char * p_prefix) override {
 			pfc::string8 name;
 			name << p_prefix << "seens";
 			return p_info.info_remove(name);
 		}
 
-		virtual void check() const override {
+		void check() const override {
 			if (from == to) throw exception_loop_bad_point();
 		}
 		virtual bool check_condition(loop_type_base::ptr p_input) {
@@ -238,11 +242,12 @@ struct sli_processor {
 			}
 			return true;
 		}
-		virtual bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) override {
+
+		bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) override {
 			// this event do not process on no_looping
 			if ((p_input->get_no_looping() && from >= to) || !check_condition(p_input)) return false;
 			++seens;
-			t_size point = pfc::downcast_guarded<t_size>(from - p_start);
+			const auto point = pfc::downcast_guarded<t_size>(from - p_start);
 			typename loop_type_sli_t::ptr p_input_special;
 			if (!smooth || !p_input->service_query_t<loop_type_sli_t>(p_input_special)) {
 				truncate_chunk(p_chunk, p_raw, point);
@@ -251,14 +256,14 @@ struct sli_processor {
 			}
 			// smooth
 			PFC_ASSERT(p_raw == nullptr); // we do not support raw streaming with smoothing
-			t_size smooth_first_samples = smooth_samples;
-			t_size require_samples = point + p_input_special->get_crossfade_samples_half();
-			t_size samples = p_chunk.get_sample_count();
+			const auto smooth_first_samples = smooth_samples;
+			const t_size require_samples = point + p_input_special->get_crossfade_samples_half();
+			auto samples = p_chunk.get_sample_count();
 			if (require_samples > samples)
 				samples += p_input->get_more_chunk(p_chunk, p_raw, p_abort, require_samples - samples);
 			if (require_samples < samples)
 				truncate_chunk(p_chunk, p_raw, require_samples);// only debug mode ?
-			t_size smooth_latter_samples = pfc::min_t(require_samples, samples) - point;
+			auto smooth_latter_samples = pfc::min_t(require_samples, samples) - point;
 			// seek
 			p_input->raw_seek(to - smooth_first_samples, p_abort);
 			// get new samples
@@ -275,13 +280,14 @@ struct sli_processor {
 				ptmp_chunk, smooth_first_samples,
 				smooth_latter_samples, 50, 100);
 			p_chunk.set_sample_count(point + smooth_latter_samples);
-			t_size smooth_total_samples = smooth_first_samples + smooth_latter_samples;
-			audio_chunk_partial_ref latter = audio_chunk_partial_ref(
+			const auto smooth_total_samples = smooth_first_samples + smooth_latter_samples;
+			const auto latter = audio_chunk_partial_ref(
 				ptmp_chunk, smooth_total_samples, samples - smooth_total_samples);
 			combine_audio_chunks(p_chunk, latter);
 			return true;
 		}
-		virtual bool process(loop_type_base::ptr p_input, abort_callback & p_abort) override {
+
+		bool process(loop_type_base::ptr p_input, abort_callback & p_abort) override {
 			// this event do not process on no_looping
 			if (p_input->get_no_looping() || !check_condition(p_input)) return false;
 			p_input->raw_seek(to, p_abort);
@@ -293,17 +299,17 @@ struct sli_processor {
 	class label : public loop_event_point_baseimpl {
 	public:
 		label() : loop_event_point_baseimpl(on_looping | on_no_looping), position(0), seens(0) {}
-		virtual t_uint64 get_position() const override { return position; }
-		virtual t_uint64 get_prepare_position() const override { return position; }
+		t_uint64 get_position() const override { return position; }
+		t_uint64 get_prepare_position() const override { return position; }
 		t_uint64 position;
 		t_size seens;
 		pfc::string8 name;
-		virtual void check() const override {}
-		virtual void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
+		void check() const override {}
+
+		void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
 			pfc::string8 name;
-			t_size prefixlen;
 			name << p_prefix;
-			prefixlen = name.get_length();
+			const auto prefixlen = name.get_length();
 
 			name.truncate(prefixlen);
 			name << "type";
@@ -327,23 +333,26 @@ struct sli_processor {
 			}
 		}
 
-		virtual bool has_dynamic_info() const override { return true; }
-		virtual bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 /*sample_rate*/) override {
+		bool has_dynamic_info() const override { return true; }
+
+		bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 /*sample_rate*/) override {
 			pfc::string8 name;
 			name << p_prefix << "seens";
 			p_info.info_set_int(name, seens);
 			return true;
 		}
-		virtual bool reset_dynamic_info(file_info & p_info, const char * p_prefix) override {
+
+		bool reset_dynamic_info(file_info & p_info, const char * p_prefix) override {
 			pfc::string8 name;
 			name << p_prefix << "seens";
 			return p_info.info_remove(name);
 		}
 
-		virtual bool process(loop_type_base::ptr p_input, t_uint64 /*p_start*/, audio_chunk & /*p_chunk*/, mem_block_container * /*p_raw*/, abort_callback & p_abort) override {
+		bool process(loop_type_base::ptr p_input, t_uint64 /*p_start*/, audio_chunk & /*p_chunk*/, mem_block_container * /*p_raw*/, abort_callback & p_abort) override {
 			return process(p_input, p_abort);
 		}
-		virtual bool process(loop_type_base::ptr p_input, abort_callback & /*p_abort*/) override {
+
+		bool process(loop_type_base::ptr p_input, abort_callback & /*p_abort*/) override {
 			// this event do not process on no_looping
 			if (cfg_sli_label_logging.get()) {
 				console::formatter() << "SLI: Label: " << name << " at " <<
@@ -361,9 +370,9 @@ struct sli_processor {
 
 	class label_formula {
 	public:
-		label_formula() : oper(nullptr) {}
+		label_formula() : oper(nullptr), indirect(false) {}
 		~label_formula() {
-			if (oper != nullptr) delete oper;
+			delete oper;
 		}
 		value_t flag;
 		formula_operator const * oper;
@@ -372,7 +381,7 @@ struct sli_processor {
 	};
 
 	static bool parse_entity(const char * & ptr, pfc::string8 & name, pfc::string8 & value) {
-		char delimiter = '\0';
+		auto delimiter = '\0';
 		char tmp;
 		t_size n = 0;
 		while (isspace(*ptr)) ptr++;
@@ -497,12 +506,11 @@ struct sli_processor {
 	}
 
 	static bool parse_label_formula(const char * p_formula, label_formula & p_out) {
-		const char * p = p_formula;
-		t_size i;
+		auto p = p_formula;
 		// starts with '['
 		if (*p != '[') return false;
 		p++;
-		i = 0;
+		t_size i = 0;
 		while (pfc::char_is_numeric(p[i])) i++;
 		if (i == 0) return false;
 		p_out.flag = flag_clipper::clip_both(pfc::atoui_ex(p, i));
@@ -510,7 +518,7 @@ struct sli_processor {
 		// after flag, should be ']'
 		if (*p != ']') return false;
 		p++;
-		bool sign = false;
+		auto sign = false;
 		switch (*p) {
 		case '=':
 			p_out.oper = new formula_operator_set();
@@ -557,8 +565,7 @@ struct sli_processor {
 			if (*p != ']') return false;
 			p++;
 		}
-		if (*p) return false;
-		return true;
+		return *p == 0;
 	}
 };
 
@@ -578,24 +585,25 @@ public:
 	static const char * g_get_short_name() { return "sli"; }
 	static bool g_is_our_type(const char * type) { return !pfc::stringCompareCaseInsensitive(type, "sli"); }
 	static bool g_is_explicit() { return true; }
-	virtual bool parse(const char * ptr) override {
+
+	bool parse(const char * ptr) override {
 		if (!*ptr) { return false; }
 		m_points.remove_all();
 		m_no_flags = true;
 		if (*ptr != '#') {
 			// v1
-			const char * p_length = strstr(ptr, "LoopLength=");
-			const char * p_start = strstr(ptr, "LoopStart=");
+			auto p_length = strstr(ptr, "LoopLength=");
+			auto p_start = strstr(ptr, "LoopStart=");
 			if (!p_length || !p_start) return false;
 			p_length += 11;
 			p_start += 10;
 			if (!pfc::char_is_numeric(*p_length) || !pfc::char_is_numeric(*p_start)) return false;
-			service_ptr_t<sli::link_impl> link = new service_impl_t<sli::link_impl>();
+			const auto link = fb2k::service_new<sli::link_impl>();
 			link->smooth = false;
 			link->condition = sli_conds.parse("no");
 			link->refvalue = 0;
 			link->condvar = 0;
-			__int64 start = _atoi64(p_start);
+			const auto start = _atoi64(p_start);
 			link->from = start + _atoi64(p_length);
 			link->to = start;
 			m_points.add_item(link);
@@ -616,7 +624,7 @@ public:
 					ptr += 4;
 					while (isspace(*ptr)) ptr++;
 					if (!*ptr) return false;
-					service_ptr_t<sli::link_impl> link = new service_impl_t<sli::link_impl>();
+					const auto link = fb2k::service_new<sli::link_impl>();
 					if (!sli::parse_link(ptr, sli_conds, link)) return false;
 					if (m_no_flags && link->condition != nullptr && link->condition->is_valid)
 						m_no_flags = false;
@@ -626,7 +634,7 @@ public:
 					ptr += 5;
 					while (isspace(*ptr)) ptr++;
 					if (!*ptr) return false;
-					service_ptr_t<sli::label> label = new service_impl_t<sli::label>();
+					const auto label = fb2k::service_new<sli::label>();
 					if (!sli::parse_label(ptr, label)) return false;
 					m_points.add_item(label);
 				}
@@ -639,14 +647,16 @@ public:
 		return false;
 	}
 	virtual t_size get_crossfade_samples_half() const { return m_crossfade_samples_half; }
-	virtual bool open_path_internal(file::ptr p_filehint, const char * path, t_input_open_reason /*p_reason*/, abort_callback & p_abort, bool p_from_redirect, bool p_skip_hints) override {
+
+	bool open_path_internal(file::ptr p_filehint, const char * path, t_input_open_reason /*p_reason*/, abort_callback & p_abort, bool p_from_redirect, bool p_skip_hints) override {
 		open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect, p_skip_hints);
 		switch_input(m_input, path, 0);
 		return true;
 	}
-	virtual void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) override {
+
+	void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) override {
 		m_crossfade_samples_half = MulDiv_Size(get_sample_rate(), 25, 1000);
-		for (t_size i = m_points.get_count() - 1; i != static_cast<t_size>(-1); i--) {
+		for (auto i = m_points.get_count() - 1; i != static_cast<t_size>(-1); i--) {
 			service_ptr_t<sli_link> link;
 			if (m_points[i]->service_query_t<sli_link>(link)) {
 				if (link->set_smooth_samples(m_crossfade_samples_half)) {
@@ -662,16 +672,17 @@ public:
 		}
 		loop_type_impl_singleinput_base::open_decoding_internal(subsong, flags, p_abort);
 	}
-	virtual void get_info(t_uint32 subsong, file_info & p_info, abort_callback & p_abort) override {
+
+	void get_info(t_uint32 subsong, file_info & p_info, abort_callback & p_abort) override {
 		get_input()->get_info(subsong, p_info, p_abort);
 		get_info_for_points(p_info, m_points, get_info_prefix(), get_sample_rate());
 	}
 
-	virtual bool set_dynamic_info(file_info & p_out) override {
+	bool set_dynamic_info(file_info & p_out) override {
 		loop_type_impl_base::set_dynamic_info(p_out);
 		if (!m_no_flags) {
 			pfc::string8 buf;
-			t_size num = m_flags.get_size();
+			const auto num = m_flags.get_size();
 			for (t_size i = 0; i < num; i++)
 				buf << "/[" << i << "]=" << m_flags[i];
 			p_out.info_set("sli_flags", buf + 1);
@@ -689,14 +700,15 @@ public:
 		if (m_no_flags) return;
 		sli::label_formula formula;
 		if (sli::parse_label_formula(p_formula, formula)) {
-			t_size flag = formula.flag;
-			sli::value_t value = formula.value;
+			const t_size flag = formula.flag;
+			auto value = formula.value;
 			if (formula.indirect) {
 				value = m_flags[value];
 			}
 			m_flags[flag] = formula.oper->calculate(m_flags[flag], value);
 		}
 	}
+
 	FB2K_MAKE_SERVICE_INTERFACE(loop_type_sli, loop_type);
 };
 
@@ -715,7 +727,7 @@ class input_sli : public input_loop_base
 public:
 	input_sli() : input_loop_base("sli_") {}
 
-	virtual void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) override {
+	void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) override {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
 		m_loopfile = p_filehint;
 		m_path = p_path;
@@ -724,8 +736,8 @@ public:
 		text_file_loader::read(m_loopfile,p_abort,m_loopcontent,is_utf8);
 		pfc::string8 p_content_basepath;
 		p_content_basepath.set_string(p_path, pfc::strlen_t(p_path) - 4); // .sli
-		loop_type_entry::ptr ptr = new service_impl_t<loop_type_impl_t<loop_type_sli>>();
-		loop_type::ptr instance = new service_impl_t<loop_type_sli>();
+		const loop_type_entry::ptr ptr = fb2k::service_new<loop_type_impl_t<loop_type_sli>>();
+		loop_type::ptr instance = fb2k::service_new<loop_type_sli>();
 		if (instance->parse(m_loopcontent) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 			m_loopentry = ptr;
 			set_looptype(instance);

@@ -41,7 +41,7 @@ namespace loop_helper {
 		try {
 			open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect, p_skip_hints);
 		}
-		catch (exception_io_not_found) {
+		catch (exception_io_not_found&) {
 			return false;
 		}
 		switch_input(m_input, path, 0);
@@ -73,14 +73,15 @@ public:
 	static bool g_is_our_type(const char * type) {return !pfc::stringCompareCaseInsensitive(type, "loopstartlength");}
 	static bool g_is_explicit() {return false;}
 	static t_uint8 g_get_priority() {return 50;} // light weight, so probe earlier
-	virtual bool parse(const char * /*ptr*/) override {
+	bool parse(const char * /*ptr*/) override {
 		return true;
 	}
-	virtual bool open_path_internal(file::ptr p_filehint,const char * path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) override {
+
+	bool open_path_internal(file::ptr p_filehint,const char * path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) override {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
 		try {
 			open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect,p_skip_hints);
-		} catch (exception_io_not_found) {
+		} catch (exception_io_not_found&) {
 			return false;
 		}
 		switch_input(m_input, path, 0);
@@ -91,15 +92,16 @@ public:
 			p_info.meta_get_count_by_name("LOOPLENGTH") != 1)
 			return false;
 		loop_event_point_simple * point = new service_impl_t<loop_event_point_simple>();
-		t_uint64 start = pfc::atoui64_ex(p_info.meta_get("LOOPSTART", 0), ~0);
-		t_uint64 length = pfc::atoui64_ex(p_info.meta_get("LOOPLENGTH", 0), ~0);
+		const auto start = pfc::atoui64_ex(p_info.meta_get("LOOPSTART", 0), ~0);
+		const auto length = pfc::atoui64_ex(p_info.meta_get("LOOPLENGTH", 0), ~0);
 		point->from = start + length;
 		point->to = start;
 		m_points.add_item(point);
 		switch_points(m_points);
 		return true;
 	}
-	virtual void get_info(t_uint32 subsong, file_info & p_info,abort_callback & p_abort) override {
+
+	void get_info(t_uint32 subsong, file_info & p_info,abort_callback & p_abort) override {
 		get_input()->get_info(subsong, p_info, p_abort);
 		get_info_for_points(p_info, m_points, get_info_prefix(), get_sample_rate());
 	}
@@ -111,18 +113,20 @@ class loop_event_point_twofiles_eof : public loop_event_point_baseimpl {
 public:
 	// situation determined on loop type
 	loop_event_point_twofiles_eof() : loop_event_point_baseimpl(on_looping | on_no_looping) {}
-	virtual t_uint64 get_position() const override {return static_cast<t_uint64>(-1);}
-	virtual t_uint64 get_prepare_position() const override {return static_cast<t_uint64>(-1);}
-	virtual void check() const override {}
-	virtual void get_info(file_info & /*p_info*/, const char * /*p_prefix*/, t_uint32 /*sample_rate*/) override {}
-	virtual bool process(loop_type_base::ptr p_input, t_uint64 /*p_start*/, audio_chunk & /*p_chunk*/, mem_block_container * /*p_raw*/, abort_callback & p_abort) override {
+	t_uint64 get_position() const override {return static_cast<t_uint64>(-1);}
+	t_uint64 get_prepare_position() const override {return static_cast<t_uint64>(-1);}
+	void check() const override {}
+	void get_info(file_info & /*p_info*/, const char * /*p_prefix*/, t_uint32 /*sample_rate*/) override {}
+
+	bool process(loop_type_base::ptr p_input, t_uint64 /*p_start*/, audio_chunk & /*p_chunk*/, mem_block_container * /*p_raw*/, abort_callback & p_abort) override {
 		// no truncate (because EOF)
 		return process(p_input, p_abort);
 	}
-	virtual bool process(loop_type_base::ptr p_input, abort_callback & p_abort) override;
+
+	bool process(loop_type_base::ptr p_input, abort_callback & p_abort) override;
 };
 
-static struct {char * head_suffix; char * body_suffix; } const g_known_suffix_table[] =
+static struct {const char * head_suffix; const char * body_suffix; } const g_known_suffix_table[] =
 {
 	{"_a", "_b"},
 	{"_A", "_B"},
@@ -148,13 +152,13 @@ private:
 	somefile m_head, m_body;
 	bool m_autoprobe;
 
-	inline void switch_to(somefile & newfile) {
+	void switch_to(somefile & newfile) {
 		m_current = &newfile;
 		switch_input(newfile.input, newfile.path, 0);
 	}
 
 protected:
-	void virtual open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) override {
+	void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) override {
 		m_head.input->initialize(subsong, flags, p_abort);
 		m_body.input->initialize(subsong, flags, p_abort);		
 	}
@@ -163,7 +167,8 @@ public:
 	static const char * g_get_short_name() {return "twofiles";}
 	static bool g_is_our_type(const char * type) {return !pfc::stringCompareCaseInsensitive(type, "twofiles");}
 	static bool g_is_explicit() {return false;}
-	virtual bool parse(const char * ptr) override {
+
+	bool parse(const char * ptr) override {
 		pfc::string8 name, value;
 		m_autoprobe = true;
 		while (parse_entity(ptr, name, value)) {
@@ -178,15 +183,14 @@ public:
 				//return false;
 			}
 		}
-		if (!m_autoprobe && m_head.suffix == m_body.suffix) return false;
-		return true;
+		return !(!m_autoprobe && m_head.suffix == m_body.suffix);
 	}
 
-	virtual bool open_path_internal(file::ptr /*p_filehint*/,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) override {
+	bool open_path_internal(file::ptr /*p_filehint*/,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) override {
 		if (p_reason == input_open_info_write) throw exception_io_unsupported_format();//our input does not support retagging.
-		pfc::string8 base, ext;
-		base = p_path;
-		t_size extpos = base.find_last('.');
+		pfc::string8 ext;
+		pfc::string8 base = p_path;
+		const auto extpos = base.find_last('.');
 		if (extpos >= base.scan_filename()) {
 			// is ext
 			ext.set_string(base + extpos);
@@ -196,14 +200,12 @@ public:
 		}
 		if (m_autoprobe) {
 			// try some known suffixes
-			bool found = false;
-			unsigned n;
-			pfc::string8 work(base);
-			t_size baselen = base.get_length();
-			for(n=0;n<tabsize(g_known_suffix_table);n++)
-			{
-				const char *head_suffix = g_known_suffix_table[n].head_suffix;
-				const char *body_suffix = g_known_suffix_table[n].body_suffix;
+			auto found = false;
+			auto work(base);
+			const auto baselen = base.get_length();
+			for (auto n : g_known_suffix_table) {
+				const auto head_suffix = n.head_suffix;
+				const auto body_suffix = n.body_suffix;
 				work.truncate(baselen);
 				work << head_suffix << ext;
 				if (!filesystem::g_exists(work, p_abort)) continue;
@@ -222,7 +224,7 @@ public:
 		filesystem::g_get_canonical_path(m_head.path, m_head.path);
 		try {
 			open_path_helper(m_head.input, nullptr, m_head.path, p_abort, p_from_redirect, p_skip_hints);
-		} catch (exception_io_not_found) {
+		} catch (exception_io_not_found&) {
 			return false;
 		}
 		m_body.path.reset();
@@ -230,7 +232,7 @@ public:
 		filesystem::g_get_canonical_path(m_body.path, m_body.path);
 		try {
 			open_path_helper(m_body.input, nullptr, m_body.path, p_abort, p_from_redirect, p_skip_hints);
-		} catch (exception_io_not_found) {
+		} catch (exception_io_not_found&) {
 			console::formatter() << "loop twofiles: body file not found: \"" << file_path_display(m_body.path) << "\"";
 			return false;
 		}
@@ -248,19 +250,22 @@ public:
 		switch_to(m_head);
 		return true;
 	}
-	virtual t_uint32 get_subsong_count() override {
+
+	t_uint32 get_subsong_count() override {
 		return 1;
 	}
-	virtual t_uint32 get_subsong(t_uint32 p_index) override {
+
+	t_uint32 get_subsong(t_uint32 p_index) override {
 		assert(p_index == 0);
 		return 0;
 	}
-	virtual void get_info(t_uint32 subsong, file_info & p_info,abort_callback & p_abort) override {
-		t_uint32 sample_rate = get_sample_rate();
+
+	void get_info(t_uint32 subsong, file_info & p_info,abort_callback & p_abort) override {
+		const auto sample_rate = get_sample_rate();
 		m_head.input->get_info(subsong, p_info, p_abort);
 		pfc::string8 name;
 		name << get_info_prefix();
-		t_size prefixlen = name.get_length();
+		const auto prefixlen = name.get_length();
 		name << "head_length";
 		p_info.info_set(name, format_samples_ex(m_head.samples, sample_rate));
 		name.truncate(prefixlen);
@@ -275,17 +280,18 @@ public:
 			p_info.info_set(name, value);
 		}
 	}
-	virtual t_filestats get_file_stats(abort_callback & p_abort) override {
+
+	t_filestats get_file_stats(abort_callback & p_abort) override {
 		return merge_filestats(
 			m_head.input->get_file_stats(p_abort),
 			m_body.input->get_file_stats(p_abort),
 			merge_filestats_sum);
 	}
-	void virtual close() override {
+	void close() override {
 		m_head.input.release();
 		m_body.input.release();
 	}
-	void virtual on_idle(abort_callback & p_abort) override {
+	void on_idle(abort_callback & p_abort) override {
 		m_head.input->on_idle(p_abort);
 		m_body.input->on_idle(p_abort);
 	}
@@ -296,10 +302,12 @@ public:
 		raw_seek(static_cast<t_uint64>(0),p_abort);
 		return true;
 	}
-	virtual void seek(double p_seconds,abort_callback & p_abort) override {
+
+	void seek(double p_seconds,abort_callback & p_abort) override {
 		seek(audio_math::time_to_samples(p_seconds, get_sample_rate()),p_abort);
 	}
-	virtual void seek(t_uint64 p_samples,abort_callback & p_abort) override {
+
+	void seek(t_uint64 p_samples,abort_callback & p_abort) override {
 		if (p_samples < m_head.samples) {
 			switch_to(m_head);
 			user_seek(p_samples,p_abort);
@@ -309,6 +317,7 @@ public:
 			user_seek(p_samples,p_abort);
 		}
 	}
+
 	FB2K_MAKE_SERVICE_INTERFACE(loop_type_twofiles, loop_type);
 };
 
@@ -333,14 +342,15 @@ public:
 	static bool g_is_our_type(const char * type) {return !pfc::stringCompareCaseInsensitive(type, "sampler");}
 	static bool g_is_explicit() {return false;}
 	static t_uint8 g_get_priority() {return 150;} // heavy weight, so probe later
-	virtual bool parse(const char * /*ptr*/) override {
+	bool parse(const char * /*ptr*/) override {
 		return true;
 	}
-	virtual bool open_path_internal(file::ptr p_filehint,const char * path,t_input_open_reason /*p_reason*/,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) override {
+
+	bool open_path_internal(file::ptr p_filehint,const char * path,t_input_open_reason /*p_reason*/,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) override {
 		if (p_filehint.is_empty()) {
 			try {
 				filesystem::g_open_read(p_filehint,path,p_abort);
-			} catch (exception_io_not_found) {
+			} catch (exception_io_not_found&) {
 				return false;
 			}
 		}
@@ -389,7 +399,7 @@ public:
         UnsignedInt('fraction'),
         UnsignedInt('playcount'),
 */
-				loop_event_point_simple * point = new service_impl_t<loop_event_point_simple>();
+				const auto point = fb2k::service_new<loop_event_point_simple>();
 				t_uint32 temp;
 				chunk_reader.read_lendian_t(temp, p_abort); // cue_point_id: ignore
 				chunk_reader.read_lendian_t(temp, p_abort); // type: currently known: 0 only
@@ -417,14 +427,15 @@ public:
 			return false;
 		try {
 			open_path_helper(m_input, p_filehint, path, p_abort, p_from_redirect,p_skip_hints);
-		} catch (exception_io_not_found) {
+		} catch (exception_io_not_found&) {
 			return false;
 		}
 		switch_input(m_input, path, 0);
 		switch_points(m_points);
 		return true;
 	}
-	virtual void get_info(t_uint32 subsong, file_info & p_info,abort_callback & p_abort) override {
+
+	void get_info(t_uint32 subsong, file_info & p_info,abort_callback & p_abort) override {
 		get_input()->get_info(subsong, p_info, p_abort);
 		get_info_for_points(p_info, m_points, get_info_prefix(), get_sample_rate());
 	}

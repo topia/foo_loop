@@ -1,3 +1,5 @@
+#pragma once
+
 namespace loop_helper {
 	extern advconfig_checkbox_factory cfg_loop_debug;
 	extern advconfig_checkbox_factory cfg_loop_disable;
@@ -87,11 +89,12 @@ namespace loop_helper {
 		virtual bool get_no_looping() const = 0;
 		virtual void raw_seek(t_uint64 samples, abort_callback& p_abort);
 		virtual void raw_seek(double seconds, abort_callback& p_abort);
-		inline void set_eof() {
+
+		void set_eof() {
 			set_succ(false);
 		}
 
-		inline void get_one_chunk(audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) {
+		void get_one_chunk(audio_chunk & p_chunk, mem_block_container * p_raw, abort_callback & p_abort) {
 			if (!get_succ()) return; // already EOF
 			if (p_raw != nullptr) {
 				set_succ(get_input_v2()->run_raw(p_chunk,*p_raw,p_abort));
@@ -142,7 +145,7 @@ namespace loop_helper {
 	};
 
 	template<typename t_item1, typename t_item2>
-	inline int loop_event_compare(const t_item1 & p_item1, const t_item2 & p_item2);
+	int loop_event_compare(const t_item1 & p_item1, const t_item2 & p_item2);
 
 	template<>
 	inline int loop_event_compare(const loop_event_point & p_item1, const loop_event_point & p_item2) {
@@ -165,7 +168,7 @@ namespace loop_helper {
 	}
 
 	template<typename t_item1, typename t_item2>
-	inline int loop_event_prepos_compare(const t_item1 & p_item1, const t_item2 & p_item2);
+	int loop_event_prepos_compare(const t_item1 & p_item1, const t_item2 & p_item2);
 
 	template<>
 	inline int loop_event_prepos_compare(const loop_event_point & p_item1, const loop_event_point & p_item2) {
@@ -214,7 +217,7 @@ namespace loop_helper {
 		virtual void set_info_prefix(const char * p_prefix) = 0;
 
 		virtual void close() = 0;
-		inline bool can_seek() {return get_input()->can_seek();}
+		bool can_seek() {return get_input()->can_seek();}
 		virtual void on_idle(abort_callback & p_abort) = 0;
 		virtual bool get_dynamic_info(file_info & p_out,double & p_timestamp_delta) = 0;
 		virtual bool get_dynamic_info_track(file_info & p_out,double & p_timestamp_delta) = 0;
@@ -248,6 +251,7 @@ namespace loop_helper {
 
 	class loop_event_point_baseimpl : public loop_event_point {
 	public:
+		virtual ~loop_event_point_baseimpl() = default;
 		// default: on looping only
 		loop_event_point_baseimpl();
 		loop_event_point_baseimpl(unsigned p_flags);
@@ -259,14 +263,14 @@ namespace loop_helper {
 		unsigned flags;
 		bool check_no_looping(loop_type_base::ptr p_input) const;
 
-		virtual t_uint64 get_prepare_position() const override;
-		virtual void get_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
-		virtual bool has_dynamic_info() const override;
-		virtual bool set_dynamic_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
-		virtual bool reset_dynamic_info(file_info& p_info, const char* p_prefix) override;
-		virtual bool has_dynamic_track_info() const override;
-		virtual bool set_dynamic_track_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
-		virtual bool reset_dynamic_track_info(file_info& p_info, const char* p_prefix) override;
+		t_uint64 get_prepare_position() const override;
+		void get_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
+		bool has_dynamic_info() const override;
+		bool set_dynamic_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
+		bool reset_dynamic_info(file_info& p_info, const char* p_prefix) override;
+		bool has_dynamic_track_info() const override;
+		bool set_dynamic_track_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
+		bool reset_dynamic_track_info(file_info& p_info, const char* p_prefix) override;
 	};
 
 	class loop_event_point_simple : public loop_event_point_baseimpl {
@@ -275,14 +279,14 @@ namespace loop_helper {
 		loop_event_point_simple();
 		t_uint64 from, to;
 		t_size maxrepeats, repeats;
-		virtual t_uint64 get_position() const override;
-		virtual void get_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
-		virtual bool has_dynamic_info() const override;
-		virtual bool set_dynamic_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
-		virtual bool reset_dynamic_info(file_info& p_info, const char* p_prefix) override;
-		virtual void check() const override;
-		virtual bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) override;
-		virtual bool process(loop_type_base::ptr p_input, abort_callback& p_abort) override;
+		t_uint64 get_position() const override;
+		void get_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
+		bool has_dynamic_info() const override;
+		bool set_dynamic_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
+		bool reset_dynamic_info(file_info& p_info, const char* p_prefix) override;
+		void check() const override;
+		bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) override;
+		bool process(loop_type_base::ptr p_input, abort_callback& p_abort) override;
 	};
 
 	class loop_event_point_end : public loop_event_point_baseimpl {
@@ -290,11 +294,11 @@ namespace loop_helper {
 		// this event process on no_looping only, default
 		loop_event_point_end();
 		t_uint64 position;
-		virtual t_uint64 get_position() const override;
-		virtual void get_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
-		virtual void check() const override;
-		virtual bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) override;
-		virtual bool process(loop_type_base::ptr p_input, abort_callback& /*p_abort*/) override;
+		t_uint64 get_position() const override;
+		void get_info(file_info& p_info, const char* p_prefix, t_uint32 sample_rate) override;
+		void check() const override;
+		bool process(loop_type_base::ptr p_input, t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) override;
+		bool process(loop_type_base::ptr p_input, abort_callback& /*p_abort*/) override;
 	};
 
 	class loop_type_impl_base : public loop_type_v3 {
@@ -325,10 +329,11 @@ namespace loop_helper {
 
 			dynamic_update_tracker();
 
-			inline bool check(t_uint64 cur) const {
+			bool check(t_uint64 cur) const {
 				return lastupdate >= cur || (lastupdate + updateperiod) < cur;
 			}
-			inline bool check_and_update(t_uint64 cur) {
+
+			bool check_and_update(t_uint64 cur) {
 				if (check(cur)) {
 					lastupdate = cur;
 					return true;
@@ -338,12 +343,12 @@ namespace loop_helper {
 		};
 		dynamic_update_tracker m_dynamic, m_dynamic_track;
 
-		inline t_size get_prepare_length(t_uint64 p_start, t_uint64 p_end, t_size nums) {
+		t_size get_prepare_length(t_uint64 p_start, t_uint64 p_end, t_size nums) {
 			t_size n;
 			bsearch_points_by_prepos(p_start, n);
-			t_uint64 maxpos = p_end;
+			auto maxpos = p_end;
 			while (n < nums) {
-				loop_event_point::ptr point = get_points_by_prepos()[n];
+				const auto point = get_points_by_prepos()[n];
 				if (point->get_prepare_position() > p_end) break;
 				maxpos = pfc::max_t<t_uint64>(maxpos, point->get_position());
 				n++;
@@ -351,7 +356,7 @@ namespace loop_helper {
 			return pfc::downcast_guarded<t_size>(maxpos - p_end);
 		}
 
-		inline t_uint64 get_prepare_pos(t_uint64 p_pos, t_size nums) {
+		t_uint64 get_prepare_pos(t_uint64 p_pos, t_size nums) {
 			t_size n;
 			bsearch_points_by_prepos(p_pos, n);
 			if (n < nums) {
@@ -361,26 +366,26 @@ namespace loop_helper {
 		}
 
 	protected:
-		inline bool get_succ() const override {return m_succ;}
-		inline void set_succ(bool val) override {m_succ = val;}
-		inline void set_cur(t_uint64 val) override { m_cur = val; }
-		inline void add_cur(t_uint64 add) override { m_cur += add; }
-		inline bool is_raw_supported() const override {return m_raw_support;}
+		bool get_succ() const override {return m_succ;}
+		void set_succ(bool val) override {m_succ = val;}
+		void set_cur(t_uint64 val) override { m_cur = val; }
+		void add_cur(t_uint64 add) override { m_cur += add; }
+		bool is_raw_supported() const override {return m_raw_support;}
 		virtual double get_dynamic_updateperiod() const;
 		virtual double get_dynamictrack_updateperiod() const;
 		virtual void set_dynamic_updateperiod(double p_time);
 		virtual void set_dynamictrack_updateperiod(double p_time);
-		virtual inline const char * get_info_prefix() const override {return m_info_prefix;}
+		const char * get_info_prefix() const override {return m_info_prefix;}
 
 		//! open file. please call switch_input.
 		virtual bool open_path_internal(file::ptr p_filehint,const char * path,t_input_open_reason p_reason,abort_callback & p_abort,bool p_from_redirect,bool p_skip_hints) = 0;
 		//! open decoding. please call switch_points in this or open_path_internal.
 		virtual void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback & p_abort) = 0;
 
-		virtual input_decoder::ptr& get_input() override;
-		virtual input_decoder_v2::ptr& get_input_v2() override;
-		virtual input_decoder_v3::ptr& get_input_v3() override;
-		virtual input_decoder_v4::ptr& get_input_v4() override;
+		input_decoder::ptr& get_input() override;
+		input_decoder_v2::ptr& get_input_v2() override;
+		input_decoder_v3::ptr& get_input_v3() override;
+		input_decoder_v4::ptr& get_input_v4() override;
 
 		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input);
 		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input, const char* p_path);
@@ -391,23 +396,23 @@ namespace loop_helper {
 
 		virtual pfc::list_permutation_t<loop_event_point::ptr> get_points_by_prepos();
 
-		inline loop_event_point_list get_points() {
+		loop_event_point_list get_points() {
 			return m_cur_points;
 		}
 
 		virtual t_size bsearch_points_by_pos(t_uint64 pos, t_size& index);
 		virtual t_size bsearch_points_by_prepos(t_uint64 pos, t_size& index);
 
-		inline void set_is_raw_supported(bool val) {m_raw_support = val;}
-		inline void set_no_looping(bool val) {m_no_looping = val;}
+		void set_is_raw_supported(bool val) {m_raw_support = val;}
+		void set_no_looping(bool val) {m_no_looping = val;}
 
 		virtual t_size get_nearest_point(t_uint64 pos);
 
-		inline void do_current_events(abort_callback & p_abort) {
+		void do_current_events(abort_callback & p_abort) {
 			do_events(get_cur(), p_abort);
 		}
 
-		inline void do_events(t_uint64 p_pos, abort_callback & p_abort) {
+		void do_events(t_uint64 p_pos, abort_callback & p_abort) {
 			do_events(p_pos, p_pos, p_abort);
 		}
 
@@ -415,12 +420,12 @@ namespace loop_helper {
 
 		virtual void do_events(t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort);
 
-		inline void user_seek(double seconds, abort_callback & p_abort) {
+		void user_seek(double seconds, abort_callback & p_abort) {
 			raw_seek(seconds, p_abort);
 			do_current_events(p_abort);
 		}
-		
-		inline void user_seek(t_uint64 samples, abort_callback & p_abort) {
+
+		void user_seek(t_uint64 samples, abort_callback & p_abort) {
 			raw_seek(samples, p_abort);
 			do_current_events(p_abort);
 		}
@@ -436,60 +441,70 @@ namespace loop_helper {
 
 		virtual bool run_common(audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort);
 
-		void get_info_for_points(file_info& p_info, loop_event_point_list& points, const char* p_prefix, t_uint32 p_sample_rate);
+		static void get_info_for_points(file_info& p_info, loop_event_point_list& points, const char* p_prefix, t_uint32 p_sample_rate);
 
 		class dispatch_dynamic_info {
 		public:
-			inline static bool point_check(loop_event_point::ptr point) {
+			static bool point_check(loop_event_point::ptr point) {
 				return point->has_dynamic_info();
 			}
-			inline static bool point_set(loop_event_point::ptr point, file_info & p_info, const char * p_prefix, t_uint32 p_sample_rate) {
+
+			static bool point_set(loop_event_point::ptr point, file_info & p_info, const char * p_prefix, t_uint32 p_sample_rate) {
 				return point->set_dynamic_info(p_info, p_prefix, p_sample_rate);
 			}
-			inline static bool point_reset(loop_event_point::ptr point, file_info & p_info, const char * p_prefix) {
+
+			static bool point_reset(loop_event_point::ptr point, file_info & p_info, const char * p_prefix) {
 				return point->reset_dynamic_info(p_info, p_prefix);
 			}
-			inline static bool parent_get(input_decoder::ptr & parent, file_info & p_out, double & p_timestamp_delta) {
+
+			static bool parent_get(input_decoder::ptr & parent, file_info & p_out, double & p_timestamp_delta) {
 				return parent->get_dynamic_info(p_out, p_timestamp_delta);
 			}
-			inline static bool self_set(loop_type_impl_base & impl, file_info & p_out) {
+
+			static bool self_set(loop_type_impl_base & impl, file_info & p_out) {
 				return impl.set_dynamic_info(p_out);
 			}
-			inline static bool self_reset(loop_type_impl_base & impl, file_info & p_out) {
+
+			static bool self_reset(loop_type_impl_base & impl, file_info & p_out) {
 				return impl.reset_dynamic_info(p_out);
 			}
 		};
 
 		class dispatch_dynamic_track_info {
 		public:
-			inline static bool point_check(loop_event_point::ptr point) {
+			static bool point_check(loop_event_point::ptr point) {
 				return point->has_dynamic_track_info();
 			}
-			inline static bool point_set(loop_event_point::ptr point, file_info & p_info, const char * p_prefix, t_uint32 p_sample_rate) {
+
+			static bool point_set(loop_event_point::ptr point, file_info & p_info, const char * p_prefix, t_uint32 p_sample_rate) {
 				return point->set_dynamic_track_info(p_info, p_prefix, p_sample_rate);
 			}
-			inline static bool point_reset(loop_event_point::ptr point, file_info & p_info, const char * p_prefix) {
+
+			static bool point_reset(loop_event_point::ptr point, file_info & p_info, const char * p_prefix) {
 				return point->reset_dynamic_track_info(p_info, p_prefix);
 			}
-			inline static bool parent_get(input_decoder::ptr & parent, file_info & p_out, double & p_timestamp_delta) {
+
+			static bool parent_get(input_decoder::ptr & parent, file_info & p_out, double & p_timestamp_delta) {
 				return parent->get_dynamic_info_track(p_out, p_timestamp_delta);
 			}
-			inline static bool self_set(loop_type_impl_base & impl, file_info & p_out) {
+
+			static bool self_set(loop_type_impl_base & impl, file_info & p_out) {
 				return impl.set_dynamic_info_track(p_out);
 			}
-			inline static bool self_reset(loop_type_impl_base & impl, file_info & p_out) {
+
+			static bool self_reset(loop_type_impl_base & impl, file_info & p_out) {
 				return impl.reset_dynamic_info_track(p_out);
 			}
 		};
 
 		template <typename t_dispatcher>
-		inline bool get_dynamic_info_t(file_info & p_out,double & p_timestamp_delta, dynamic_update_tracker & tracker) {
+		bool get_dynamic_info_t(file_info & p_out,double & p_timestamp_delta, dynamic_update_tracker & tracker) {
 			bool ret = t_dispatcher::parent_get(get_input(),p_out,p_timestamp_delta);
-			loop_event_point_list & oldlist = tracker.m_old_points;
+			auto& oldlist = tracker.m_old_points;
 			if (oldlist.get_count() != 0 || tracker.m_input_switched) {
 				ret |= t_dispatcher::self_reset(*this, p_out);
 				for (t_size n = 0, m = get_points().get_count(); n < m; ++n ) {
-					loop_event_point::ptr point = get_points()[n];
+					auto point = get_points()[n];
 					if (t_dispatcher::point_check(point)) {
 						pfc::string8 name;
 						name << get_info_prefix() << "point_" << pfc::format_int(n, 2) << "_";
@@ -506,9 +521,9 @@ namespace loop_helper {
 			if (!get_no_looping()) {
 				if (tracker.check_and_update(get_cur())) {
 					ret |= t_dispatcher::self_set(*this, p_out);
-					t_uint32 sample_rate = get_sample_rate();
+					auto sample_rate = get_sample_rate();
 					for (t_size n = 0, m = get_points().get_count(); n < m; ++n ) {
-						loop_event_point::ptr point = get_points()[n];
+						auto point = get_points()[n];
 						if (t_dispatcher::point_check(point)) {
 							pfc::string8 name;
 							name << get_info_prefix() << "point_" << pfc::format_int(n, 2) << "_";
@@ -524,55 +539,51 @@ namespace loop_helper {
 		loop_type_impl_base();
 		virtual ~loop_type_impl_base();
 
-		t_uint64 virtual get_cur() const override;
-		t_uint32 virtual get_sample_rate() const override;
-		virtual bool get_no_looping() const override;
-		virtual void set_info_prefix(const char* p_prefix) override;
+		t_uint64 get_cur() const override;
+		t_uint32 get_sample_rate() const override;
+		bool get_no_looping() const override;
+		void set_info_prefix(const char* p_prefix) override;
 
-		virtual bool open_path(file::ptr p_filehint, const char* path, t_input_open_reason p_reason, abort_callback& p_abort, bool p_from_redirect, bool p_skip_hints) override;
-		virtual void open_decoding(t_uint32 subsong, t_uint32 flags, abort_callback& p_abort) override;
-		virtual bool process_event(loop_event_point::ptr point, t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) override;
-		virtual bool process_event(loop_event_point::ptr point, abort_callback& p_abort) override;
+		bool open_path(file::ptr p_filehint, const char* path, t_input_open_reason p_reason, abort_callback& p_abort, bool p_from_redirect, bool p_skip_hints) override;
+		void open_decoding(t_uint32 subsong, t_uint32 flags, abort_callback& p_abort) override;
+		bool process_event(loop_event_point::ptr point, t_uint64 p_start, audio_chunk& p_chunk, mem_block_container* p_raw, abort_callback& p_abort) override;
+		bool process_event(loop_event_point::ptr point, abort_callback& p_abort) override;
 
-		virtual bool run(audio_chunk& p_chunk, abort_callback& p_abort) override;
-		virtual bool run_raw(audio_chunk& p_chunk, mem_block_container& p_raw, abort_callback& p_abort) override;
+		bool run(audio_chunk& p_chunk, abort_callback& p_abort) override;
+		bool run_raw(audio_chunk& p_chunk, mem_block_container& p_raw, abort_callback& p_abort) override;
 
-		virtual void seek(double p_seconds, abort_callback& p_abort) override;
-		virtual void seek(t_uint64 p_samples, abort_callback& p_abort) override;
+		void seek(double p_seconds, abort_callback& p_abort) override;
+		void seek(t_uint64 p_samples, abort_callback& p_abort) override;
 
 		// other input_decoder methods
-		bool virtual get_dynamic_info(file_info& p_out, double& p_timestamp_delta) override;
-		bool virtual get_dynamic_info_track(file_info& p_out, double& p_timestamp_delta) override;
+		bool get_dynamic_info(file_info& p_out, double& p_timestamp_delta) override;
+		bool get_dynamic_info_track(file_info& p_out, double& p_timestamp_delta) override;
 
-		void virtual set_logger(event_logger::ptr ptr) override;
+		void set_logger(event_logger::ptr ptr) override;
 
 		//! OPTIONAL, in case your input cares about paused/unpaused state, handle this to do any necessary additional processing. Valid only after initialize() with input_flag_playback.
-		virtual void set_pause(bool paused) override;
+		void set_pause(bool paused) override;
 		//! OPTIONAL, should return false in most cases; return true to force playback buffer flush on unpause. Valid only after initialize() with input_flag_playback.
-		virtual bool flush_on_pause() override;
+		bool flush_on_pause() override;
 
 		//! OPTIONAL, return 0 if not implemented. \n
 		//! Provides means for communication of context specific data with the decoder. The decoder should do nothing and return 0 if it does not recognize the passed arguments.
-		virtual size_t extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size) override;
-
-		typedef input_decoder_v4 interface_decoder_t;
-		typedef input_info_reader interface_info_reader_t;
-		typedef input_info_writer interface_info_writer_t;
+		size_t extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size) override;
 	};
 
 	class loop_type_impl_singleinput_base : public loop_type_impl_base {
 	protected:
-		void virtual open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback& p_abort) override;
+		void open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback& p_abort) override;
 
 	public:
-		virtual t_uint32 get_subsong_count() override;
-		virtual t_uint32 get_subsong(t_uint32 p_index) override;
+		t_uint32 get_subsong_count() override;
+		t_uint32 get_subsong(t_uint32 p_index) override;
 
-		virtual void get_info(t_uint32 subsong, file_info& p_info, abort_callback& p_abort) override;
-		virtual t_filestats get_file_stats(abort_callback& p_abort) override;
+		void get_info(t_uint32 subsong, file_info& p_info, abort_callback& p_abort) override;
+		t_filestats get_file_stats(abort_callback& p_abort) override;
 
-		virtual void close() override;
-		virtual void on_idle(abort_callback& p_abort) override;
+		void close() override;
+		void on_idle(abort_callback& p_abort) override;
 	};
 
 	class loop_type_entry : public service_base {
@@ -589,11 +600,11 @@ namespace loop_helper {
 	template<typename t_instance_impl>
 	class loop_type_impl_t : public loop_type_entry {
 	public:
-		virtual const char * get_name() const override {return t_instance_impl::g_get_name();}
-		virtual const char * get_short_name() const override {return t_instance_impl::g_get_short_name();}
-		virtual bool is_our_type(const char * type) const override { return t_instance_impl::g_is_our_type(type); }
-		virtual bool is_explicit() const override { return t_instance_impl::g_is_explicit(); }
-		virtual loop_type::ptr instantiate() const override {return new service_impl_t<t_instance_impl>();}
+		const char * get_name() const override {return t_instance_impl::g_get_name();}
+		const char * get_short_name() const override {return t_instance_impl::g_get_short_name();}
+		bool is_our_type(const char * type) const override { return t_instance_impl::g_is_our_type(type); }
+		bool is_explicit() const override { return t_instance_impl::g_is_explicit(); }
+		loop_type::ptr instantiate() const override {return new service_impl_t<t_instance_impl>();}
 	};
 
 	template<typename t_instance_impl> class loop_type_factory_t :
@@ -610,12 +621,12 @@ namespace loop_helper {
 	template<typename t_instance_impl>
 	class loop_type_impl_v2_t : public loop_type_entry_v2  {
 	public:
-		virtual const char * get_name() const override {return t_instance_impl::g_get_name();}
-		virtual const char * get_short_name() const override {return t_instance_impl::g_get_short_name();}
-		virtual bool is_our_type(const char * type) const override {return t_instance_impl::g_is_our_type(type);}
-		virtual bool is_explicit() const override {return t_instance_impl::g_is_explicit();}
-		virtual loop_type::ptr instantiate() const override {return new service_impl_t<t_instance_impl>();}
-		virtual t_uint8 get_priority() const override {return t_instance_impl::g_get_priority();}
+		const char * get_name() const override {return t_instance_impl::g_get_name();}
+		const char * get_short_name() const override {return t_instance_impl::g_get_short_name();}
+		bool is_our_type(const char * type) const override {return t_instance_impl::g_is_our_type(type);}
+		bool is_explicit() const override {return t_instance_impl::g_is_explicit();}
+		loop_type::ptr instantiate() const override {return new service_impl_t<t_instance_impl>();}
+		t_uint8 get_priority() const override {return t_instance_impl::g_get_priority();}
 	};
 
 	template<typename t_instance_impl> class loop_type_factory_v2_t :
@@ -631,8 +642,8 @@ namespace loop_helper {
 		static const char* g_get_short_name();
 		static bool g_is_our_type(const char* type);
 		static bool g_is_explicit();
-		virtual bool parse(const char* ptr) override;
-		virtual bool open_path_internal(file::ptr p_filehint, const char* path, t_input_open_reason p_reason, abort_callback& p_abort, bool p_from_redirect, bool p_skip_hints) override;
+		bool parse(const char* ptr) override;
+		bool open_path_internal(file::ptr p_filehint, const char* path, t_input_open_reason p_reason, abort_callback& p_abort, bool p_from_redirect, bool p_skip_hints) override;
 	};
 
 	class loop_type_entire : public loop_type_impl_singleinput_base
@@ -645,8 +656,8 @@ namespace loop_helper {
 		static const char* g_get_short_name();
 		static bool g_is_our_type(const char* type);
 		static bool g_is_explicit();
-		virtual bool parse(const char* ptr) override;
-		virtual bool open_path_internal(file::ptr p_filehint, const char * path, t_input_open_reason p_reason, abort_callback & p_abort, bool p_from_redirect, bool p_skip_hints) override;
+		bool parse(const char* ptr) override;
+		bool open_path_internal(file::ptr p_filehint, const char * path, t_input_open_reason p_reason, abort_callback & p_abort, bool p_from_redirect, bool p_skip_hints) override;
 	};
 
 	class NOVTABLE input_loop_base

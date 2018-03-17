@@ -1,4 +1,4 @@
-#include <stdafx.h>
+#include "stdafx.h"
 #include "looping.h"
 
 namespace loop_helper {
@@ -27,9 +27,9 @@ namespace loop_helper {
 
 
 	void do_crossfade(audio_sample* p_dest, const audio_sample* p_src1, const audio_sample* p_src2, int nch, t_size samples, t_uint ratiostart, t_uint ratioend) {
-		audio_sample blend_step =
+		const auto blend_step =
 			static_cast<audio_sample>((ratioend - ratiostart) / 100.0 / samples);
-		audio_sample ratio = static_cast<audio_sample>(ratiostart) / 100;
+		auto ratio = static_cast<audio_sample>(ratiostart) / 100;
 		while (samples) {
 			for (int ch = nch - 1; ch >= 0; ch--) {
 				*p_dest = *p_src1 + (*p_src2 - *p_src1) * ratio;
@@ -58,10 +58,10 @@ namespace loop_helper {
 			throw exception_io("p_src1 or p_src2 unsufficient sample");
 		}
 		p_dest.pad_with_silence(destpos + samples);
-		int nch = p_dest.get_channels();
-		audio_sample * pd = p_dest.get_data() + (destpos*nch);
-		const audio_sample * ps1 = p_src1.get_data() + (src1pos*nch);
-		const audio_sample * ps2 = p_src2.get_data() + (src2pos*nch);
+		const auto nch = p_dest.get_channels();
+		const auto pd = p_dest.get_data() + (destpos*nch);
+		const auto ps1 = p_src1.get_data() + (src1pos*nch);
+		const auto ps2 = p_src2.get_data() + (src2pos*nch);
 		do_crossfade(pd, ps1, ps2, nch, samples, ratiostart, ratioend);
 	}
 
@@ -79,9 +79,9 @@ namespace loop_helper {
 		    p_src.get_sample_count() < (srcpos + samples)) {
 			throw exception_io("p_dest or p_src unsufficient sample");
 		}
-		int nch = p_dest.get_channels();
-		audio_sample * pd = p_dest.get_data() + (destpos*nch);
-		const audio_sample * ps = p_src.get_data() + (srcpos*nch);
+		const auto nch = p_dest.get_channels();
+		const auto pd = p_dest.get_data() + (destpos*nch);
+		const auto ps = p_src.get_data() + (srcpos*nch);
 		do_crossfade(pd, pd, ps, nch, samples, ratiostart, ratioend);
 	}
 }
