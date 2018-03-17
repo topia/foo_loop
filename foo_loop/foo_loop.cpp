@@ -69,7 +69,7 @@ public:
 					loop_type::ptr instance = ptr->instantiate();
 					if (instance->parse(p_content) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 						m_loopentry = ptr;
-						m_looptype = instance;
+						set_looptype(instance);
 						continue;
 					}
 				}
@@ -83,7 +83,7 @@ public:
 			loop_type::ptr instance = new service_impl_t<loop_type_entire>();
 			if (instance->parse(p_content) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 				m_loopentry = ptr;
-				m_looptype = instance;
+				set_looptype(instance);
 			}
 			PFC_ASSERT(m_looptype.is_valid()); // parse error on input_loop_type_entire !?
 		}
@@ -95,10 +95,22 @@ public:
 	static bool g_is_our_path(const char * /*p_path*/,const char * p_extension) {
 		return stricmp_utf8(p_extension, "loop") == 0;
 	}
+
+	static GUID g_get_guid() {
+		// {14C848B3-899B-4B28-95A3-814CA84001FE}
+		static const GUID guid =
+		{ 0x14c848b3, 0x899b, 0x4b28,{ 0x95, 0xa3, 0x81, 0x4c, 0xa8, 0x40, 0x1, 0xfe } };
+		return guid;
+	};
+	static const char * g_get_name() {
+		return "Standard Loop Information Handler";
+	};
+	static GUID g_get_preferences_guid() { return pfc::guid_null; }
+	static bool g_is_low_merit() { return false; }
 };
 
 
-static input_factory_ex_t<input_loop, input_entry::flag_redirect, input_decoder_v2> g_input_loop_factory;
+static input_factory_t<input_loop, input_entry::flag_redirect> g_input_loop_factory;
 
 
 DECLARE_COMPONENT_VERSION("Standard Loop Information Handler","0.4 alpha","Standard Looping Handler.\nThis includes .loop and .sli support.");

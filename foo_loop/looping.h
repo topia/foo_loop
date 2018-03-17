@@ -223,6 +223,29 @@ namespace loop_helper {
 		FB2K_MAKE_SERVICE_INTERFACE(loop_type, loop_type_base);
 	};
 
+	class NOVTABLE loop_type_v2 : public loop_type {
+	protected:
+		virtual input_decoder_v3::ptr & get_input_v3() = 0;
+	public:
+		//! OPTIONAL, in case your input cares about paused/unpaused state, handle this to do any necessary additional processing. Valid only after initialize() with input_flag_playback.
+		virtual void set_pause(bool paused) = 0;
+		//! OPTIONAL, should return false in most cases; return true to force playback buffer flush on unpause. Valid only after initialize() with input_flag_playback.
+		virtual bool flush_on_pause() = 0;
+
+		FB2K_MAKE_SERVICE_INTERFACE(loop_type_v2, loop_type);
+	};
+
+	class NOVTABLE loop_type_v3 : public loop_type_v2 {
+	protected:
+		virtual input_decoder_v4::ptr & get_input_v4() = 0;
+	public:
+		//! OPTIONAL, return 0 if not implemented. \n
+		//! Provides means for communication of context specific data with the decoder. The decoder should do nothing and return 0 if it does not recognize the passed arguments.
+		virtual size_t extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size) = 0;
+
+		FB2K_MAKE_SERVICE_INTERFACE(loop_type_v3, loop_type_v2);
+	};
+
 	class loop_event_point_baseimpl : public loop_event_point {
 	public:
 		// default: on looping only
@@ -274,7 +297,7 @@ namespace loop_helper {
 		virtual bool process(loop_type_base::ptr p_input, abort_callback& /*p_abort*/) override;
 	};
 
-	class loop_type_impl_base : public loop_type {
+	class loop_type_impl_base : public loop_type_v3 {
 	private:
 		t_uint32 m_sample_rate;
 		t_uint64 m_cur;
@@ -287,6 +310,8 @@ namespace loop_helper {
 		pfc::array_t<t_size> m_perm_by_pos, m_perm_by_prepos;
 		input_decoder::ptr m_current_input;
 		input_decoder_v2::ptr m_current_input_v2;
+		input_decoder_v3::ptr m_current_input_v3;
+		input_decoder_v4::ptr m_current_input_v4;
 		bool m_current_changed;
 		pfc::string8 m_current_path, m_current_fileext;
 		t_uint64 m_nextpointpos;
@@ -354,6 +379,8 @@ namespace loop_helper {
 
 		virtual input_decoder::ptr& get_input() override;
 		virtual input_decoder_v2::ptr& get_input_v2() override;
+		virtual input_decoder_v3::ptr& get_input_v3() override;
+		virtual input_decoder_v4::ptr& get_input_v4() override;
 
 		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input);
 		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input, const char* p_path);
@@ -518,6 +545,19 @@ namespace loop_helper {
 		bool virtual get_dynamic_info_track(file_info& p_out, double& p_timestamp_delta) override;
 
 		void virtual set_logger(event_logger::ptr ptr) override;
+
+		//! OPTIONAL, in case your input cares about paused/unpaused state, handle this to do any necessary additional processing. Valid only after initialize() with input_flag_playback.
+		virtual void set_pause(bool paused) override;
+		//! OPTIONAL, should return false in most cases; return true to force playback buffer flush on unpause. Valid only after initialize() with input_flag_playback.
+		virtual bool flush_on_pause() override;
+
+		//! OPTIONAL, return 0 if not implemented. \n
+		//! Provides means for communication of context specific data with the decoder. The decoder should do nothing and return 0 if it does not recognize the passed arguments.
+		virtual size_t extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size) override;
+
+		typedef input_decoder_v4 interface_decoder_t;
+		typedef input_info_reader interface_info_reader_t;
+		typedef input_info_writer interface_info_writer_t;
 	};
 
 	class loop_type_impl_singleinput_base : public loop_type_impl_base {
@@ -633,16 +673,27 @@ namespace loop_helper {
 		void retag_commit(abort_callback& p_abort);
 		void retag(const file_info& p_info, abort_callback& p_abort);
 		void set_logger(event_logger::ptr ptr);
+		void set_pause(bool paused);
+		bool flush_on_pause();
+		size_t extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size);
+
+		typedef input_decoder_v4 interface_decoder_t;
+		typedef input_info_reader interface_info_reader_t;
+		typedef input_info_writer interface_info_writer_t;
 
 	protected:
 		input_loop_base(const char* p_info_prefix);
+		// Please call switch_loop
 		virtual void open_internal(file::ptr p_filehint,const char * p_path,t_input_open_reason p_reason,abort_callback & p_abort) = 0;
+		void set_looptype(loop_type::ptr looptype);
 		//static bool g_is_our_content_type(const char * p_content_type);
 		//static bool g_is_our_path(const char * p_path,const char * p_extension);
 		file::ptr m_loopfile;
 		pfc::string8 m_path;
 		loop_type_entry::ptr m_loopentry;
 		loop_type::ptr m_looptype;
+		loop_type_v2::ptr m_looptype_v2;
+		loop_type_v3::ptr m_looptype_v3;
 		pfc::string8 m_loopcontent;
 		pfc::string8 m_info_prefix;
 	};
@@ -659,4 +710,28 @@ namespace loop_helper {
 	inline int isspace(char c) {
 		return ::isspace(static_cast<unsigned char>(c));
 	}
+
+	//// {566BCC79-7370-48c0-A7CB-5E47C4C17A86}
+	FOOGUIDDECL const GUID loop_type_entry::class_guid =
+	{ 0x566bcc79, 0x7370, 0x48c0,{ 0xa7, 0xcb, 0x5e, 0x47, 0xc4, 0xc1, 0x7a, 0x86 } };
+
+	//// {399E8435-5341-4549-8C9D-176979EC4300}
+	FOOGUIDDECL const GUID loop_type_entry_v2::class_guid =
+	{ 0x399e8435, 0x5341, 0x4549,{ 0x8c, 0x9d, 0x17, 0x69, 0x79, 0xec, 0x43, 0x0 } };
+
+	//// {C9E7AF50-FDF8-4a2f-99A6-8DE4D2B49D0C}
+	FOOGUIDDECL const GUID loop_type::class_guid =
+	{ 0xc9e7af50, 0xfdf8, 0x4a2f,{ 0x99, 0xa6, 0x8d, 0xe4, 0xd2, 0xb4, 0x9d, 0xc } };
+
+	// {EE404A04-7B81-4D93-B477-96855A54D864}
+	FOOGUIDDECL const GUID loop_type_v2::class_guid =
+	{ 0xee404a04, 0x7b81, 0x4d93,{ 0xb4, 0x77, 0x96, 0x85, 0x5a, 0x54, 0xd8, 0x64 } };
+
+	// {E5F03B86-CAEF-4B3E-B150-45FA567A5C8E}
+	FOOGUIDDECL const GUID loop_type_v3::class_guid =
+	{ 0xe5f03b86, 0xcaef, 0x4b3e,{ 0xb1, 0x50, 0x45, 0xfa, 0x56, 0x7a, 0x5c, 0x8e } };
+
+	//// {CA8E32C1-1A2D-4679-87AB-03292A97D890}
+	FOOGUIDDECL const GUID loop_type_base::class_guid =
+	{ 0xca8e32c1, 0x1a2d, 0x4679,{ 0x87, 0xab, 0x3, 0x29, 0x2a, 0x97, 0xd8, 0x90 } };
 }

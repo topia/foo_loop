@@ -728,7 +728,7 @@ public:
 		loop_type::ptr instance = new service_impl_t<loop_type_sli>();
 		if (instance->parse(m_loopcontent) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 			m_loopentry = ptr;
-			m_looptype = instance;
+			set_looptype(instance);
 		} else {
 			throw exception_io_data();
 		}
@@ -736,10 +736,22 @@ public:
 
 	static bool g_is_our_content_type(const char * /*p_content_type*/) {return false;}
 	static bool g_is_our_path(const char * /*p_path*/,const char * p_extension) {return stricmp_utf8(p_extension, "sli") == 0;}
+
+	static GUID g_get_guid() {
+		// {8BDE8271-677F-4F33-8F3C-5800EFB15BCA}
+		static const GUID guid =
+		{ 0x8bde8271, 0x677f, 0x4f33,{ 0x8f, 0x3c, 0x58, 0x0, 0xef, 0xb1, 0x5b, 0xca } };
+		return guid;
+	};
+	static const char * g_get_name() {
+		return "SLI Loop Information Handler";
+	};
+	static GUID g_get_preferences_guid() { return pfc::guid_null; }
+	static bool g_is_low_merit() { return false; }
 };
 
 
-static input_singletrack_factory_ex_t<input_sli, input_entry::flag_redirect, input_decoder_v2> g_input_sli_factory;
+static input_singletrack_factory_t<input_sli, input_entry::flag_redirect> g_input_sli_factory;
 
 
 //DECLARE_COMPONENT_VERSION("sli loop manager","0.3-dev",NULL);

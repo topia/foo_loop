@@ -7,6 +7,7 @@
 
 #include <foobar2000.h>
 #include <helpers.h>
+#include <text_file_loader.h>
 
 
 // TODO: reference additional headers your program requires here

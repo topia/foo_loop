@@ -273,13 +273,23 @@ namespace loop_helper {
 	}
 
 	input_decoder::ptr& loop_type_impl_base::get_input() {
-		if (m_current_input.is_empty()) throw pfc::exception_bug_check_v2();
+		if (m_current_input.is_empty()) throw pfc::exception_bug_check();
 		return m_current_input;
 	}
 
 	input_decoder_v2::ptr& loop_type_impl_base::get_input_v2() {
 		if (m_current_input_v2.is_empty()) throw pfc::exception_not_implemented();
 		return m_current_input_v2;
+	}
+
+	input_decoder_v3::ptr& loop_type_impl_base::get_input_v3() {
+		if (m_current_input_v3.is_empty()) throw pfc::exception_not_implemented();
+		return m_current_input_v3;
+	}
+
+	input_decoder_v4::ptr& loop_type_impl_base::get_input_v4() {
+		if (m_current_input_v4.is_empty()) throw pfc::exception_not_implemented();
+		return m_current_input_v4;
 	}
 
 	void loop_type_impl_base::switch_input(input_decoder::ptr p_input) {
@@ -294,7 +304,11 @@ namespace loop_helper {
 		// please specify reopen'd input...
 		m_current_input = p_input;
 		if (m_current_input_v2.is_valid()) m_current_input_v2.release();
+		if (m_current_input_v3.is_valid()) m_current_input_v3.release();
+		if (m_current_input_v4.is_valid()) m_current_input_v4.release();
 		m_current_input->service_query_t(m_current_input_v2);
+		if (m_current_input_v2.is_valid()) m_current_input_v2->service_query_t(m_current_input_v3);
+		if (m_current_input_v3.is_valid()) m_current_input_v3->service_query_t(m_current_input_v4);
 		m_dynamic.m_input_switched = m_dynamic_track.m_input_switched = true;
 		m_dynamic.m_input_switched_pos = m_dynamic_track.m_input_switched_pos = pos_on_decode;
 		m_current_changed = true;
@@ -329,12 +343,12 @@ namespace loop_helper {
 	}
 
 	pfc::list_permutation_t<loop_event_point::ptr> loop_type_impl_base::get_points_by_pos() {
-		if (m_cur_points_by_pos == nullptr) throw pfc::exception_bug_check_v2();
+		if (m_cur_points_by_pos == nullptr) throw pfc::exception_bug_check();
 		return *m_cur_points_by_pos;
 	}
 
 	pfc::list_permutation_t<loop_event_point::ptr> loop_type_impl_base::get_points_by_prepos() {
-		if (m_cur_points_by_prepos == nullptr) throw pfc::exception_bug_check_v2();
+		if (m_cur_points_by_prepos == nullptr) throw pfc::exception_bug_check();
 		return *m_cur_points_by_prepos;
 	}
 
@@ -584,7 +598,47 @@ namespace loop_helper {
 	}
 
 	void loop_type_impl_base::set_logger(event_logger::ptr ptr) {
-		get_input_v2()->set_logger(ptr);
+		input_decoder_v2::ptr input_v2;
+		try {
+			input_v2 = get_input_v2();
+		}
+		catch (pfc::exception_not_implemented&) {
+			return;
+		}
+		input_v2->set_logger(ptr);
+	}
+
+	void loop_type_impl_base::set_pause(bool paused) {
+		input_decoder_v3::ptr input_v3;
+		try {
+			input_v3 = get_input_v3();
+		}
+		catch (pfc::exception_not_implemented&) {
+			return;
+		}
+		input_v3->set_pause(paused);
+	}
+
+	bool loop_type_impl_base::flush_on_pause() {
+		input_decoder_v3::ptr input_v3;
+		try {
+			input_v3 = get_input_v3();
+		}
+		catch (pfc::exception_not_implemented&) {
+			return false;
+		}
+		return input_v3->flush_on_pause();
+	}
+
+	size_t loop_type_impl_base::extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size) {
+		input_decoder_v4::ptr input_v4;
+		try {
+			input_v4 = get_input_v4();
+		}
+		catch (pfc::exception_not_implemented&) {
+			return 0;
+		}
+		return input_v4->extended_param(type, arg1, arg2, arg2size);
 	}
 
 	void loop_type_impl_singleinput_base::open_decoding_internal(t_uint32 subsong, t_uint32 flags, abort_callback& p_abort) {
@@ -710,8 +764,28 @@ namespace loop_helper {
 		m_looptype->set_logger(ptr);
 	}
 
+	void input_loop_base::set_pause(bool paused) {
+		if (m_looptype_v2.is_valid()) m_looptype_v2->set_pause(paused);
+	}
+
+	bool input_loop_base::flush_on_pause() {
+		if (m_looptype_v2.is_empty()) return false;
+		return m_looptype_v2->flush_on_pause();
+	}
+	size_t input_loop_base::extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size) {
+		if (m_looptype_v3.is_empty()) return 0;
+		return m_looptype_v3->extended_param(type, arg1, arg2, arg2size);
+	}
+
 	input_loop_base::input_loop_base(const char* p_info_prefix): 
 		m_info_prefix(p_info_prefix) {}
+
+	void input_loop_base::set_looptype(loop_type::ptr looptype) {
+		m_looptype = looptype;
+		m_looptype->service_query_t(m_looptype_v2);
+		if (m_looptype_v2.is_valid()) m_looptype_v2->service_query_t(m_looptype_v3);
+	}
+
 
 	#pragma region GUIDs
 	// {E50D5DE0-6F95-4b1c-9165-63D80415ED1B}
@@ -724,14 +798,6 @@ namespace loop_helper {
 	static const GUID guid_cfg_loop_disable =
 	{ 0x9208ba62, 0xafbe, 0x450e, { 0xa4, 0x68, 0x72, 0x79, 0x2d, 0xae, 0x51, 0x93 } };
 
-	//// {C9E7AF50-FDF8-4a2f-99A6-8DE4D2B49D0C}
-	FOOGUIDDECL const GUID loop_type::class_guid = 
-	{ 0xc9e7af50, 0xfdf8, 0x4a2f, { 0x99, 0xa6, 0x8d, 0xe4, 0xd2, 0xb4, 0x9d, 0xc } };
-
-	//// {CA8E32C1-1A2D-4679-87AB-03292A97D890}
-	FOOGUIDDECL const GUID loop_type_base::class_guid = 
-	{ 0xca8e32c1, 0x1a2d, 0x4679, { 0x87, 0xab, 0x3, 0x29, 0x2a, 0x97, 0xd8, 0x90 } };
-
 	//// {D751AD10-1EC1-4711-8698-22ED1C900503}
 	//FOOGUIDDECL const GUID loop_type_base_v2::class_guid = 
 	//{ 0xd751ad10, 0x1ec1, 0x4711, { 0x86, 0x98, 0x22, 0xed, 0x1c, 0x90, 0x5, 0x3 } };
@@ -739,14 +805,6 @@ namespace loop_helper {
 	//// {2910A6A6-A12B-414f-971B-90A65F79439B}
 	FOOGUIDDECL const GUID loop_event_point::class_guid = 
 	{ 0x2910a6a6, 0xa12b, 0x414f, { 0x97, 0x1b, 0x90, 0xa6, 0x5f, 0x79, 0x43, 0x9b } };
-
-	//// {566BCC79-7370-48c0-A7CB-5E47C4C17A86}
-	FOOGUIDDECL const GUID loop_type_entry::class_guid = 
-	{ 0x566bcc79, 0x7370, 0x48c0, { 0xa7, 0xcb, 0x5e, 0x47, 0xc4, 0xc1, 0x7a, 0x86 } };
-
-	//// {399E8435-5341-4549-8C9D-176979EC4300}
-	FOOGUIDDECL const GUID loop_type_entry_v2::class_guid = 
-	{ 0x399e8435, 0x5341, 0x4549, { 0x8c, 0x9d, 0x17, 0x69, 0x79, 0xec, 0x43, 0x0 } };
 
 	#pragma endregion
 
