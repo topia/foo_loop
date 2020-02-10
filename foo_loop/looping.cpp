@@ -308,6 +308,9 @@ namespace loop_helper {
 		m_current_input->service_query_t(m_current_input_v2);
 		if (m_current_input_v2.is_valid()) m_current_input_v2->service_query_t(m_current_input_v3);
 		if (m_current_input_v3.is_valid()) m_current_input_v3->service_query_t(m_current_input_v4);
+		if (m_current_input_v2.is_valid() && m_logger.is_valid()) {
+			m_current_input_v2->set_logger(m_logger);
+		}
 		m_dynamic.m_input_switched = m_dynamic_track.m_input_switched = true;
 		m_dynamic.m_input_switched_pos = m_dynamic_track.m_input_switched_pos = pos_on_decode;
 		m_current_changed = true;
@@ -594,6 +597,7 @@ namespace loop_helper {
 	}
 
 	void loop_type_impl_base::set_logger(event_logger::ptr ptr) {
+		m_logger = ptr;
 		input_decoder_v2::ptr input_v2;
 		try {
 			input_v2 = get_input_v2();
@@ -671,6 +675,9 @@ namespace loop_helper {
 		PFC_ASSERT(m_looptype.is_valid());
 		PFC_ASSERT(m_loopentry.is_valid());
 		m_looptype->set_info_prefix(m_info_prefix);
+		if (m_logger.is_valid()) {
+			m_looptype->set_logger(m_logger);
+		}
 	}
 
 	void input_loop_base::get_info(t_uint32 p_subsong, file_info& p_info, abort_callback& p_abort) {
@@ -755,9 +762,15 @@ namespace loop_helper {
 		retag_set_info(0,p_info,p_abort);
 		retag_commit(p_abort);
 	}
-
+	void input_loop_base::remove_tags(abort_callback & abort) {
+		throw exception_io_unsupported_format();
+	}
+	
 	void input_loop_base::set_logger(event_logger::ptr ptr) {
-		m_looptype->set_logger(ptr);
+		m_logger = ptr;
+		if (m_looptype != nullptr) {
+			m_looptype->set_logger(ptr);
+		}
 	}
 
 	void input_loop_base::set_pause(bool paused) {

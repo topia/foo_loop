@@ -316,6 +316,7 @@ namespace loop_helper {
 		input_decoder_v2::ptr m_current_input_v2;
 		input_decoder_v3::ptr m_current_input_v3;
 		input_decoder_v4::ptr m_current_input_v4;
+		event_logger::ptr m_logger;
 		bool m_current_changed;
 		pfc::string8 m_current_path, m_current_fileext;
 		t_uint64 m_nextpointpos;
@@ -683,6 +684,7 @@ namespace loop_helper {
 		void retag_set_info(t_uint32 p_subsong, const file_info& p_info, abort_callback& p_abort);
 		void retag_commit(abort_callback& p_abort);
 		void retag(const file_info& p_info, abort_callback& p_abort);
+		void remove_tags(abort_callback & abort);
 		void set_logger(event_logger::ptr ptr);
 		void set_pause(bool paused);
 		bool flush_on_pause();
@@ -690,7 +692,7 @@ namespace loop_helper {
 
 		typedef input_decoder_v4 interface_decoder_t;
 		typedef input_info_reader interface_info_reader_t;
-		typedef input_info_writer interface_info_writer_t;
+		typedef input_info_writer_v2 interface_info_writer_t;
 
 	protected:
 		input_loop_base(const char* p_info_prefix);
@@ -705,6 +707,7 @@ namespace loop_helper {
 		loop_type::ptr m_looptype;
 		loop_type_v2::ptr m_looptype_v2;
 		loop_type_v3::ptr m_looptype_v3;
+		event_logger::ptr m_logger;
 		pfc::string8 m_loopcontent;
 		pfc::string8 m_info_prefix;
 	};
