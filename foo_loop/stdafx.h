@@ -5,9 +5,8 @@
 
 #pragma once
 
-#include <foobar2000.h>
-#include <helpers.h>
-#include <text_file_loader.h>
+#include <SDK/foobar2000.h>
+#include <helpers/helpers.h>
 
 
 // TODO: reference additional headers your program requires here

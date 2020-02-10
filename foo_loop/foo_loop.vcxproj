@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -53,7 +53,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(SolutionDir)SDK\foobar2000\SDK;$(SolutionDir)SDK\foobar2000\helpers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)foobar2000-sdk\SDK\foobar2000;$(SolutionDir)foobar2000-sdk\SDK;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_USRDLL;FOO_LOOPING_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
@@ -63,7 +63,7 @@
       <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SolutionDir)SDK\foobar2000\shared\shared.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SolutionDir)foobar2000-sdk\SDK\foobar2000\shared\shared.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
@@ -73,7 +73,7 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>$(SolutionDir)SDK\foobar2000\SDK;$(SolutionDir)SDK\foobar2000\helpers;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)foobar2000-sdk\SDK\foobar2000;$(SolutionDir)foobar2000-sdk\SDK;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_USRDLL;FOO_LOOPING_EXPORTS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -82,7 +82,7 @@
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>$(SolutionDir)SDK\foobar2000\shared\shared.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SolutionDir)foobar2000-sdk\SDK\foobar2000\shared\shared.lib;shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
@@ -110,19 +110,19 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\SDK\foobar2000\foobar2000_component_client\foobar2000_component_client.vcxproj">
+    <ProjectReference Include="$(SolutionDir)foobar2000-sdk\SDK\foobar2000\foobar2000_component_client\foobar2000_component_client.vcxproj">
       <Project>{71ad2674-065b-48f5-b8b0-e1f9d3892081}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="..\SDK\foobar2000\helpers\foobar2000_sdk_helpers.vcxproj">
+    <ProjectReference Include="$(SolutionDir)foobar2000-sdk\SDK\foobar2000\helpers\foobar2000_sdk_helpers.vcxproj">
       <Project>{ee47764e-a202-4f85-a767-abdab4aff35f}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="..\SDK\foobar2000\SDK\foobar2000_SDK.vcxproj">
+    <ProjectReference Include="$(SolutionDir)foobar2000-sdk\SDK\foobar2000\SDK\foobar2000_SDK.vcxproj">
       <Project>{e8091321-d79d-4575-86ef-064ea1a4a20d}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="..\SDK\pfc\pfc.vcxproj">
+    <ProjectReference Include="$(SolutionDir)foobar2000-sdk\SDK\pfc\pfc.vcxproj">
       <Project>{ebfffb4e-261d-44d3-b89c-957b31a0bf9c}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
