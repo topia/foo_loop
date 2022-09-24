@@ -4,11 +4,13 @@
 using namespace loop_helper;
 
 struct thbgm_entry {
-	t_filesize offset, headlength, bodylength;
+	t_filesize offset = 0;
+	t_filesize headlength = 0;
+	t_filesize bodylength = 0;
 	pfc::string8 title;
 };
 
-typedef pfc::list_t<thbgm_entry, pfc::alloc_fast> thbgm_entry_list;
+using thbgm_entry_list = pfc::list_t<thbgm_entry, pfc::alloc_fast>;
 
 // private input_decoder
 class input_raw_thbgm : public input_decoder_v2
@@ -39,7 +41,7 @@ public:
 	}
 
 	t_uint32 get_subsong_count() override {
-		return m_list.get_size();
+		return static_cast<t_uint32>(m_list.get_size());
 	}
 
 	t_uint32 get_subsong(t_uint32 p_subsong) override {
@@ -148,7 +150,7 @@ protected:
 	file::ptr m_file;
 	thbgm_entry_list m_list;
 	thbgm_entry m_entry;
-	t_filesize m_filepos;
+	t_filesize m_filepos = 0;
 	t_filesize m_seeksize;
 	t_filesize m_filesize;
 	pfc::string8 m_title;
@@ -288,4 +290,5 @@ public:
 	}
 };
 
+// ReSharper disable once CppDeclaratorNeverUsed
 static loop_type_factory_t<loop_type_thbgm> g_loop_type_thbgm;

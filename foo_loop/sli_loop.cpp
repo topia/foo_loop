@@ -41,34 +41,34 @@ struct value_clipper {
 };
 
 // {808359F5-36A6-4b67-BF0D-5FA83C404035}
-static const GUID guid_cfg_sli_label_log = 
+static constexpr GUID guid_cfg_sli_label_log = 
 { 0x808359f5, 0x36a6, 0x4b67, { 0xbf, 0xd, 0x5f, 0xa8, 0x3c, 0x40, 0x40, 0x35 } };
 advconfig_checkbox_factory cfg_sli_label_logging("SLI Label Logging",guid_cfg_sli_label_log,loop_type_base::guid_cfg_branch_loop,0,false);
 
 template <typename sli_value_t, int sli_num_flags, sli_value_t sli_min_value, sli_value_t sli_max_value, typename loop_type_sli_t>
 struct sli_processor {
-	typedef sli_value_t value_t;
+	using value_t = sli_value_t;
 	enum {
 		num_flags = sli_num_flags,
 		min_value = sli_min_value,
 		max_value = sli_max_value,
 	};
 	struct flag_trait_t {
-		typedef sli_value_t value_t;
+		using value_t = sli_value_t;
 		enum {
 			min_value = 0,
 			max_value = sli_num_flags + 1,
 		};
 	};
-	typedef value_clipper<flag_trait_t> flag_clipper;
+	using flag_clipper = value_clipper<flag_trait_t>;
 	struct value_trait_t {
-		typedef sli_value_t value_t;
+		using value_t = sli_value_t;
 		enum {
 			min_value = sli_min_value,
 			max_value = sli_max_value,
 		};
 	};
-	typedef value_clipper<value_trait_t> value_clipper;
+	using value_clipper = value_clipper<value_trait_t>;
 
 	class loop_condition {
 	public:
@@ -307,28 +307,28 @@ struct sli_processor {
 		void check() const override {}
 
 		void get_info(file_info & p_info, const char * p_prefix, t_uint32 sample_rate) override {
-			pfc::string8 name;
-			name << p_prefix;
-			const auto prefixlen = name.get_length();
+			pfc::string8 info_name;
+			info_name << p_prefix;
+			const auto prefixlen = info_name.get_length();
 
-			name.truncate(prefixlen);
-			name << "type";
-			p_info.info_set(name, "label");
+			info_name.truncate(prefixlen);
+			info_name << "type";
+			p_info.info_set(info_name, "label");
 
-			name.truncate(prefixlen);
-			name << "pos";
-			p_info.info_set(name, format_samples_ex(position, sample_rate));
+			info_name.truncate(prefixlen);
+			info_name << "pos";
+			p_info.info_set(info_name, format_samples_ex(position, sample_rate));
 
 			if (this->name) {
 				if (this->name[0] == ':') {
-					name.truncate(prefixlen);
-					name << "formula";
-					p_info.info_set(name, this->name.get_ptr() + 1);
+					info_name.truncate(prefixlen);
+					info_name << "formula";
+					p_info.info_set(info_name, this->name.get_ptr() + 1);
 				}
 				else {
-					name.truncate(prefixlen);
-					name << "name";
-					p_info.info_set(name, this->name);
+					info_name.truncate(prefixlen);
+					info_name << "name";
+					p_info.info_set(info_name, this->name);
 				}
 			}
 		}
@@ -336,16 +336,16 @@ struct sli_processor {
 		bool has_dynamic_info() const override { return true; }
 
 		bool set_dynamic_info(file_info & p_info, const char * p_prefix, t_uint32 /*sample_rate*/) override {
-			pfc::string8 name;
-			name << p_prefix << "seens";
-			p_info.info_set_int(name, seens);
+			pfc::string8 info_name;
+			info_name << p_prefix << "seens";
+			p_info.info_set_int(info_name, seens);
 			return true;
 		}
 
 		bool reset_dynamic_info(file_info & p_info, const char * p_prefix) override {
-			pfc::string8 name;
-			name << p_prefix << "seens";
-			return p_info.info_remove(name);
+			pfc::string8 info_name;
+			info_name << p_prefix << "seens";
+			return p_info.info_remove(info_name);
 		}
 
 		bool process(loop_type_base::ptr p_input, t_uint64 /*p_start*/, audio_chunk & /*p_chunk*/, mem_block_container * /*p_raw*/, abort_callback & p_abort) override {
@@ -572,13 +572,13 @@ struct sli_processor {
 class loop_type_sli : public loop_type_impl_singleinput_base
 {
 private:
-	typedef int sli_value_t;
+	using sli_value_t = int;
 	input_decoder::ptr m_input;
 	loop_event_point_list m_points;
 	pfc::array_staticsize_t<sli_value_t> m_flags;
 	bool m_no_flags;
-	t_size m_crossfade_samples_half;
-	typedef sli_processor<sli_value_t, 16, 0, 9999, loop_type_sli> sli;
+	t_size m_crossfade_samples_half = 0;
+	using sli = sli_processor<sli_value_t, 16, 0, 9999, loop_type_sli>;
 	sli::loop_conditions sli_conds;
 public:
 	static const char * g_get_name() { return "kirikiri-SLI"; }
@@ -712,6 +712,7 @@ public:
 	FB2K_MAKE_SERVICE_INTERFACE(loop_type_sli, loop_type);
 };
 
+// ReSharper disable once CppDeclaratorNeverUsed
 static loop_type_factory_t<loop_type_sli> g_loop_type_sli;
 
 // {5EEA84FA-6765-4917-A800-791AE10809E1}
@@ -751,19 +752,20 @@ public:
 
 	static GUID g_get_guid() {
 		// {8BDE8271-677F-4F33-8F3C-5800EFB15BCA}
-		static const GUID guid =
+		static constexpr GUID guid =
 		{ 0x8bde8271, 0x677f, 0x4f33,{ 0x8f, 0x3c, 0x58, 0x0, 0xef, 0xb1, 0x5b, 0xca } };
 		return guid;
-	};
+	}
 	static const char * g_get_name() {
 		return "SLI Loop Information Handler";
-	};
+	}
 	static GUID g_get_preferences_guid() { return pfc::guid_null; }
 	static bool g_is_low_merit() { return false; }
 };
 
 
-static input_singletrack_factory_t<input_sli, input_entry::flag_redirect> g_input_sli_factory;
+// ReSharper disable once CppDeclaratorNeverUsed
+static input_singletrack_factory_t<input_sli, input_entry::flag_redirect | input_entry::flag_parallel_reads_slow> g_input_sli_factory;
 
 
 //DECLARE_COMPONENT_VERSION("sli loop manager","0.3-dev",NULL);

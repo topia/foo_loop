@@ -15,7 +15,7 @@ namespace {
 }
 
 struct loop_type_prioritized_entry {
-	t_uint8 priority;
+	t_uint8 priority = 0;
 	loop_type_entry::ptr ptr;
 };
 
@@ -47,7 +47,7 @@ public:
 		service_enum_t<loop_type_entry> e;
 		loop_type_entry::ptr ptr;
 		pfc::list_t<loop_type_prioritized_entry> ents;
-		bool type_specified = !looptype.is_empty();
+		const bool type_specified = !looptype.is_empty();
 		while (e.next(ptr)) {
 			// if type specified, use type only. otherwise try auto-probing
 			if (type_specified ? ptr->is_our_type(looptype) : !ptr->is_explicit()) {
@@ -66,7 +66,7 @@ public:
 			for (t_size i=0; i<m_perm_by_prio.get_size(); ++i) {
 				if (m_looptype.is_empty()) {
 					ptr = ents.get_item(m_perm_by_prio[i]).ptr;
-					loop_type::ptr instance = ptr->instantiate();
+					const loop_type::ptr instance = ptr->instantiate();
 					if (instance->parse(p_content) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 						m_loopentry = ptr;
 						set_looptype(instance);
@@ -80,7 +80,7 @@ public:
 		if (m_looptype.is_empty()) {
 			//console::formatter() << "loop parsing failed, resume to normal playback: \"" << file_path_display(p_path) << "\"";
 			ptr = new service_impl_t<loop_type_impl_t<loop_type_entire>>();
-			loop_type::ptr instance = new service_impl_t<loop_type_entire>();
+			const loop_type::ptr instance = new service_impl_t<loop_type_entire>();
 			if (instance->parse(p_content) && instance->open_path(nullptr, p_content_basepath, p_reason, p_abort, true, false)) {
 				m_loopentry = ptr;
 				set_looptype(instance);
@@ -98,20 +98,21 @@ public:
 
 	static GUID g_get_guid() {
 		// {14C848B3-899B-4B28-95A3-814CA84001FE}
-		static const GUID guid =
+		static constexpr GUID guid =
 		{ 0x14c848b3, 0x899b, 0x4b28,{ 0x95, 0xa3, 0x81, 0x4c, 0xa8, 0x40, 0x1, 0xfe } };
 		return guid;
-	};
+	}
 	static const char * g_get_name() {
 		return "Standard Loop Information Handler";
-	};
+	}
 	static GUID g_get_preferences_guid() { return pfc::guid_null; }
 	static bool g_is_low_merit() { return false; }
 };
 
 
+// ReSharper disable once CppDeclaratorNeverUsed
 static input_factory_t<input_loop, input_entry::flag_redirect> g_input_loop_factory;
 
 
-DECLARE_COMPONENT_VERSION("Standard Loop Information Handler","0.4 alpha","Standard Looping Handler.\nThis includes .loop and .sli support.");
+DECLARE_COMPONENT_VERSION("Standard Loop Information Handler","0.5 alpha","Standard Looping Handler.\nThis includes .loop and .sli support.");
 DECLARE_FILE_TYPE_EX("LOOP","Audio Loop Information File","Audio Loop Information Files");

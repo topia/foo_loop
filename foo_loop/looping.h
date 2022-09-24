@@ -190,7 +190,7 @@ namespace loop_helper {
 		return pfc::compare_t(p_item1.is_valid() ? p_item1->get_prepare_position() : static_cast<t_uint64>(-1), p_item2);
 	}
 
-	typedef pfc::list_t<loop_event_point::ptr, pfc::alloc_fast> loop_event_point_list;
+	using loop_event_point_list = pfc::list_t<loop_event_point::ptr, pfc::alloc_fast>;
 
 	class NOVTABLE loop_type : public loop_type_base {
 	protected:
@@ -690,9 +690,9 @@ namespace loop_helper {
 		bool flush_on_pause();
 		size_t extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size);
 
-		typedef input_decoder_v4 interface_decoder_t;
-		typedef input_info_reader interface_info_reader_t;
-		typedef input_info_writer_v2 interface_info_writer_t;
+		using interface_decoder_t = input_decoder_v4;
+		using interface_info_reader_t = input_info_reader;
+		using interface_info_writer_t = input_info_writer_v2;
 
 	protected:
 		input_loop_base(const char* p_info_prefix);

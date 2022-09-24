@@ -59,7 +59,9 @@ namespace loop_helper {
 
 using namespace loop_helper;
 
+// ReSharper disable once CppDeclaratorNeverUsed
 static loop_type_factory_t<loop_type_none> g_loop_type_none;
+// ReSharper disable once CppDeclaratorNeverUsed
 static loop_type_factory_t<loop_type_entire> g_loop_type_entire;
 
 class loop_type_loopstartlength : public loop_type_impl_singleinput_base
@@ -107,6 +109,7 @@ public:
 	}
 };
 
+// ReSharper disable once CppDeclaratorNeverUsed
 static loop_type_factory_t<loop_type_loopstartlength> g_loop_type_loopstartlength;
 
 class loop_event_point_twofiles_eof : public loop_event_point_baseimpl {
@@ -329,6 +332,7 @@ bool loop_event_point_twofiles_eof::process(loop_type_base::ptr p_input, abort_c
 	return false;
 }
 
+// ReSharper disable once CppDeclaratorNeverUsed
 static loop_type_factory_t<loop_type_twofiles> g_loop_type_twofiles;
 
 class loop_type_sampler : public loop_type_impl_singleinput_base
@@ -441,6 +445,7 @@ public:
 	}
 };
 
+// ReSharper disable once CppDeclaratorNeverUsed
 static loop_type_factory_v2_t<loop_type_sampler> g_loop_type_sampler;
 
 #pragma region GUIDs

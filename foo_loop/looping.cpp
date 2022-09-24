@@ -9,8 +9,8 @@ namespace loop_helper {
 		p_input.release();
 
 		TRACK_CODE("input_entry::g_open_for_decoding",
-			input_entry::g_open_for_decoding(p_input,p_file,path,p_abort,p_from_redirect)
-			);
+			input_entry::g_open_for_decoding(p_input, p_file, path, p_abort, p_from_redirect)
+		);
 
 		
 		if (!p_skip_hints) {
@@ -21,8 +21,8 @@ namespace loop_helper {
 				p_input.release();
 				if (p_file.is_valid()) p_file->reopen(p_abort);
 				TRACK_CODE("input_entry::g_open_for_decoding",
-					input_entry::g_open_for_decoding(p_input,p_file,path,p_abort,p_from_redirect)
-					);
+					input_entry::g_open_for_decoding(p_input, p_file, path, p_abort, p_from_redirect)
+				);
 			}
 		}
 	}
@@ -32,7 +32,7 @@ namespace loop_helper {
 		char tmp;
 		t_size n = 0;
 		while(isspace(*ptr)) ptr++;
-		while(tmp = ptr[n], tmp && !isspace(tmp) && tmp != '=') n++;
+		while (tmp = ptr[n], tmp && !isspace(tmp) && tmp != '=') n++;
 		if (!ptr[n]) return false;
 		name.set_string(ptr, n);
 		ptr += n;
@@ -508,7 +508,7 @@ namespace loop_helper {
 
 	void loop_type_impl_base::get_info_for_points(file_info& p_info, loop_event_point_list& points, const char* p_prefix, t_uint32 p_sample_rate) {
 		for (t_size n = 0, m = points.get_count(); n < m; ++n ) {
-			auto point = points[n];
+			const auto point = points[n];
 			pfc::string8 name;
 			name << p_prefix << "point_" << pfc::format_int(n, 2) << "_";
 			point->get_info(p_info, name, p_sample_rate);
@@ -801,10 +801,10 @@ namespace loop_helper {
 	FOOGUIDDECL const GUID loop_type_base::guid_cfg_branch_loop =
 	{ 0xe50d5de0, 0x6f95, 0x4b1c, { 0x91, 0x65, 0x63, 0xd8, 0x4, 0x15, 0xed, 0x1b } };
 	// {69B1AEBB-E2A6-4c73-AEA2-5037A79B1B62}
-	static const GUID guid_cfg_loop_debug =
+	static constexpr GUID guid_cfg_loop_debug =
 	{ 0x69b1aebb, 0xe2a6, 0x4c73, { 0xae, 0xa2, 0x50, 0x37, 0xa7, 0x9b, 0x1b, 0x62 } };
 	// {9208BA62-AFBE-450e-A468-72792DAE5193}
-	static const GUID guid_cfg_loop_disable =
+	static constexpr GUID guid_cfg_loop_disable =
 	{ 0x9208ba62, 0xafbe, 0x450e, { 0xa4, 0x68, 0x72, 0x79, 0x2d, 0xae, 0x51, 0x93 } };
 
 	//// {D751AD10-1EC1-4711-8698-22ED1C900503}
