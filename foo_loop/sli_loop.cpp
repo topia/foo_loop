@@ -761,6 +761,7 @@ public:
 	}
 	static GUID g_get_preferences_guid() { return pfc::guid_null; }
 	static bool g_is_low_merit() { return false; }
+	static bool g_fallback_is_our_payload(const void* bytes, size_t bytesAvail, t_filesize bytesWhole) { return false; }
 };
 
 

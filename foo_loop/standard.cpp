@@ -146,6 +146,7 @@ class loop_type_twofiles : public loop_type_impl_base
 private:
 	struct somefile {
 		input_decoder::ptr input;
+		input_info_reader_v2::ptr info_reader_v2;
 		pfc::string8 suffix;
 		pfc::string8 path;
 		t_uint64 samples;
@@ -290,9 +291,18 @@ public:
 			m_body.input->get_file_stats(p_abort),
 			merge_filestats_sum);
 	}
+	t_filestats2 get_stats2(uint32_t s2flags, abort_callback & p_abort) override
+	{
+		return merge_filestats2(
+			query_input_filestats2(m_head.input, m_head.info_reader_v2, s2flags, p_abort),
+			query_input_filestats2(m_body.input, m_body.info_reader_v2, s2flags, p_abort),
+			merge_filestats_sum);
+	}
 	void close() override {
 		m_head.input.release();
+		m_head.info_reader_v2.release();
 		m_body.input.release();
+		m_body.info_reader_v2.release();
 	}
 	void on_idle(abort_callback & p_abort) override {
 		m_head.input->on_idle(p_abort);

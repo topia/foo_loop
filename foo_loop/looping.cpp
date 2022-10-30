@@ -73,6 +73,22 @@ namespace loop_helper {
 		return dest;
 	}
 
+	t_filestats2 merge_filestats2(const t_filestats2 & p_src1, const t_filestats2 & p_src2, int p_merge_type) {
+		t_filestats2 dest;
+		dest.m_timestamp = pfc::max_t(p_src1.m_timestamp, p_src2.m_timestamp);
+		if (p_merge_type == merge_filestats_sum) {
+			dest.m_size = p_src1.m_size + p_src2.m_size;
+		} else if (p_merge_type == merge_filestats_max) {
+			dest.m_size = pfc::max_t(p_src1.m_size, p_src2.m_size);
+		} else {
+			throw pfc::exception_not_implemented();
+		}
+		dest.m_timestampCreate = pfc::min_t(p_src1.m_timestampCreate, p_src2.m_timestampCreate);
+		dest.m_attribs = p_src1.m_attribs & p_src2.m_attribs;
+		dest.m_attribsValid = p_src1.m_attribsValid & p_src2.m_attribsValid;
+		return dest;
+	}
+
 	void loop_type_base::raw_seek(t_uint64 samples, abort_callback& p_abort) {
 		set_succ(true);
 		get_input()->seek(audio_math::samples_to_time(samples, get_sample_rate()), p_abort);
@@ -291,6 +307,11 @@ namespace loop_helper {
 		return m_current_input_v4;
 	}
 
+	input_info_reader_v2::ptr& loop_type_impl_base::get_info_reader_v2() {
+		if (m_current_info_reader_v2.is_empty()) throw pfc::exception_not_implemented();
+		return m_current_info_reader_v2;
+	}
+
 	void loop_type_impl_base::switch_input(input_decoder::ptr p_input) {
 		switch_input(p_input, nullptr, -1);
 	}
@@ -305,12 +326,14 @@ namespace loop_helper {
 		if (m_current_input_v2.is_valid()) m_current_input_v2.release();
 		if (m_current_input_v3.is_valid()) m_current_input_v3.release();
 		if (m_current_input_v4.is_valid()) m_current_input_v4.release();
+		if (m_current_info_reader_v2.is_valid()) m_current_info_reader_v2.release();
 		m_current_input->service_query_t(m_current_input_v2);
 		if (m_current_input_v2.is_valid()) m_current_input_v2->service_query_t(m_current_input_v3);
 		if (m_current_input_v3.is_valid()) m_current_input_v3->service_query_t(m_current_input_v4);
 		if (m_current_input_v2.is_valid() && m_logger.is_valid()) {
 			m_current_input_v2->set_logger(m_logger);
 		}
+		m_current_input->service_query_t(m_current_info_reader_v2);
 		m_dynamic.m_input_switched = m_dynamic_track.m_input_switched = true;
 		m_dynamic.m_input_switched_pos = m_dynamic_track.m_input_switched_pos = pos_on_decode;
 		m_current_changed = true;
@@ -661,6 +684,19 @@ namespace loop_helper {
 		return get_input()->get_file_stats(p_abort);
 	}
 
+	t_filestats2 loop_type_impl_singleinput_base::get_stats2(uint32_t s2flags, abort_callback& p_abort) {
+		input_info_reader_v2::ptr reader_v2;
+		try
+		{
+			reader_v2 = get_info_reader_v2();
+		}
+		catch (pfc::exception_not_implemented&)
+		{
+			return t_filestats2::from_legacy(this->get_file_stats(p_abort));
+		}
+		return reader_v2->get_stats2(s2flags, p_abort);
+	}
+
 	void loop_type_impl_singleinput_base::close() {
 		get_input().release();
 	}
@@ -714,6 +750,18 @@ namespace loop_helper {
 				       merge_filestats_sum);
 		else
 			return m_looptype->get_file_stats(p_abort);
+	}
+
+	t_filestats2 input_loop_base::get_stats2(uint32_t s2flags, abort_callback& p_abort) {
+		if (m_looptype_v4.is_empty())
+			return t_filestats2::from_legacy(this->get_file_stats(p_abort));
+		else if (m_loopfile.is_valid())
+			return merge_filestats2(
+				m_loopfile_v2.is_valid() ? m_loopfile_v2->get_stats2(s2flags, p_abort) : t_filestats2::from_legacy(m_loopfile->get_stats(p_abort)),
+				m_looptype_v4->get_stats2(s2flags, p_abort),
+				merge_filestats_sum);
+		else
+			return m_looptype_v4->get_stats2(s2flags, p_abort);
 	}
 
 	void input_loop_base::decode_initialize(t_uint32 p_subsong, unsigned p_flags, abort_callback& p_abort) {
@@ -790,9 +838,14 @@ namespace loop_helper {
 		m_info_prefix(p_info_prefix) {}
 
 	void input_loop_base::set_looptype(loop_type::ptr looptype) {
+		if (m_looptype.is_valid()) m_looptype.release();
+		if (m_looptype_v2.is_valid()) m_looptype_v2.release();
+		if (m_looptype_v3.is_valid()) m_looptype_v3.release();
+		if (m_looptype_v4.is_valid()) m_looptype_v4.release();
 		m_looptype = looptype;
 		m_looptype->service_query_t(m_looptype_v2);
 		if (m_looptype_v2.is_valid()) m_looptype_v2->service_query_t(m_looptype_v3);
+		if (m_looptype_v3.is_valid()) m_looptype_v3->service_query_t(m_looptype_v4);
 	}
 
 

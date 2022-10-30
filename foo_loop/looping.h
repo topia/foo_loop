@@ -31,6 +31,14 @@ namespace loop_helper {
 		merge_filestats_max = 2,
 	};
 	t_filestats merge_filestats(const t_filestats & p_src1, const t_filestats & p_src2, int p_merge_type);
+	t_filestats2 merge_filestats2(const t_filestats2 & p_src1, const t_filestats2 & p_src2, int p_merge_type);
+	template <typename T = input_decoder>
+	inline
+		t_filestats2 query_input_filestats2(typename T::ptr& p_reader, input_info_reader_v2::ptr& p_reader_v2, t_uint32 s2flags, abort_callback& p_abort)
+	{
+		return p_reader_v2.is_valid() ? p_reader_v2->get_stats2(s2flags, p_abort) : t_filestats2::from_legacy(p_reader->get_file_stats(p_abort));
+	}
+
 
 	void inline combine_audio_chunks(audio_chunk & p_first,const audio_chunk & p_second) {
 		if (p_first.is_empty()) {
@@ -249,6 +257,16 @@ namespace loop_helper {
 		FB2K_MAKE_SERVICE_INTERFACE(loop_type_v3, loop_type_v2);
 	};
 
+	class NOVTABLE loop_type_v4 : public loop_type_v3
+	{
+	protected:
+		virtual input_info_reader_v2::ptr & get_info_reader_v2() = 0;
+	public:
+		virtual t_filestats2 get_stats2(uint32_t s2flags, abort_callback& p_abort) = 0;
+
+		FB2K_MAKE_SERVICE_INTERFACE(loop_type_v4, loop_type_v3);
+	};
+
 	class loop_event_point_baseimpl : public loop_event_point {
 	public:
 		virtual ~loop_event_point_baseimpl() = default;
@@ -301,7 +319,7 @@ namespace loop_helper {
 		bool process(loop_type_base::ptr p_input, abort_callback& /*p_abort*/) override;
 	};
 
-	class loop_type_impl_base : public loop_type_v3 {
+	class loop_type_impl_base : public loop_type_v4 {
 	private:
 		t_uint32 m_sample_rate;
 		t_uint64 m_cur;
@@ -316,6 +334,7 @@ namespace loop_helper {
 		input_decoder_v2::ptr m_current_input_v2;
 		input_decoder_v3::ptr m_current_input_v3;
 		input_decoder_v4::ptr m_current_input_v4;
+		input_info_reader_v2::ptr m_current_info_reader_v2;
 		event_logger::ptr m_logger;
 		bool m_current_changed;
 		pfc::string8 m_current_path, m_current_fileext;
@@ -387,6 +406,7 @@ namespace loop_helper {
 		input_decoder_v2::ptr& get_input_v2() override;
 		input_decoder_v3::ptr& get_input_v3() override;
 		input_decoder_v4::ptr& get_input_v4() override;
+		input_info_reader_v2::ptr& get_info_reader_v2() override;
 
 		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input);
 		virtual __declspec(deprecated) void switch_input(input_decoder::ptr p_input, const char* p_path);
@@ -582,6 +602,7 @@ namespace loop_helper {
 
 		void get_info(t_uint32 subsong, file_info& p_info, abort_callback& p_abort) override;
 		t_filestats get_file_stats(abort_callback& p_abort) override;
+		t_filestats2 get_stats2(uint32_t s2flags, abort_callback& p_abort) override;
 
 		void close() override;
 		void on_idle(abort_callback& p_abort) override;
@@ -671,7 +692,7 @@ namespace loop_helper {
 		t_uint32 get_subsong_count();
 		t_uint32 get_subsong(t_uint32 p_index);
 		t_filestats get_file_stats(abort_callback& p_abort);
-
+		t_filestats2 get_stats2(uint32_t s2flags, abort_callback& p_abort);
 		void decode_initialize(t_uint32 p_subsong, unsigned p_flags, abort_callback& p_abort);
 		void decode_initialize(unsigned p_flags, abort_callback& p_abort);
 		bool decode_run(audio_chunk& p_chunk, abort_callback& p_abort);
@@ -691,7 +712,7 @@ namespace loop_helper {
 		size_t extended_param(const GUID & type, size_t arg1, void * arg2, size_t arg2size);
 
 		using interface_decoder_t = input_decoder_v4;
-		using interface_info_reader_t = input_info_reader;
+		using interface_info_reader_t = input_info_reader_v2;
 		using interface_info_writer_t = input_info_writer_v2;
 
 	protected:
@@ -702,11 +723,13 @@ namespace loop_helper {
 		//static bool g_is_our_content_type(const char * p_content_type);
 		//static bool g_is_our_path(const char * p_path,const char * p_extension);
 		file::ptr m_loopfile;
+		file_v2::ptr m_loopfile_v2;
 		pfc::string8 m_path;
 		loop_type_entry::ptr m_loopentry;
 		loop_type::ptr m_looptype;
 		loop_type_v2::ptr m_looptype_v2;
 		loop_type_v3::ptr m_looptype_v3;
+		loop_type_v4::ptr m_looptype_v4;
 		event_logger::ptr m_logger;
 		pfc::string8 m_loopcontent;
 		pfc::string8 m_info_prefix;
@@ -744,6 +767,10 @@ namespace loop_helper {
 	// {E5F03B86-CAEF-4B3E-B150-45FA567A5C8E}
 	FOOGUIDDECL const GUID loop_type_v3::class_guid =
 	{ 0xe5f03b86, 0xcaef, 0x4b3e,{ 0xb1, 0x50, 0x45, 0xfa, 0x56, 0x7a, 0x5c, 0x8e } };
+
+	// {C8F317A5-93E7-4F7C-8CC8-284BD50CF6B9}
+	FOOGUIDDECL const GUID loop_type_v4::class_guid =
+	{ 0xc8f317a5, 0x93e7, 0x4f7c,{ 0x8c, 0xc8, 0x28, 0x4b, 0xd5, 0xc, 0xf6, 0xb9 } };
 
 	//// {CA8E32C1-1A2D-4679-87AB-03292A97D890}
 	FOOGUIDDECL const GUID loop_type_base::class_guid =
