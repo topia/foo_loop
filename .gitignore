@@ -3,3 +3,6 @@ Debug/
 Release/
 *.user
 /.idea
+x64/
+ARM64/
+ARM64EC/
