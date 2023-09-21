@@ -525,6 +525,7 @@ struct sli_processor {
 			break;
 		case '+':
 			sign = true;
+			[[fallthrough]];
 		case '-':
 			if (*p == *(p + 1)) {
 				if (sign)
@@ -542,6 +543,7 @@ struct sli_processor {
 				p++;
 				break;
 			}
+			[[fallthrough]];
 		default:
 			// unknown operator
 			return false;
